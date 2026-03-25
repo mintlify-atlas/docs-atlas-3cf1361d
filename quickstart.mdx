@@ -1,80 +1,255 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: 'Quickstart'
+description: 'Get a working Gantt chart rendering in your React app in minutes.'
+keywords: ['gantt', 'react', 'quickstart', 'getting started']
 ---
 
-## Get started in three steps
+SVAR React Gantt is a high-performance, customizable Gantt chart component. This guide walks you from installation to a fully interactive chart with tasks, links, and API access.
 
-Get your documentation site running locally and make your first customization.
+## Prerequisites
 
-### Step 1: Set up your local environment
+- React **>=18** and react-dom **>=18**
+- A bundler that supports ES modules (Vite, webpack 5+, Next.js 13+)
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+## Steps
 
-### Step 2: Deploy your changes
+<Steps>
+  <Step title="Install the package">
+    <CodeGroup>
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    ```bash npm
+    npm install @svar-ui/react-gantt
+    ```
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+    ```bash yarn
+    yarn add @svar-ui/react-gantt
+    ```
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+    ```bash pnpm
+    pnpm add @svar-ui/react-gantt
+    ```
 
-### Step 3: Go live
+    </CodeGroup>
+  </Step>
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+  <Step title="Import the CSS">
+    Import styles once at the top of your app entry point or in your root layout.
+
+    ```javascript index.js
+    import '@svar-ui/react-gantt/all.css';
+    ```
+
+    <Tip>
+      Use `all.css` — it includes both the component styles and all dependency styles in one file.
+      Use `style.css` only if you are managing dependency styles yourself.
+    </Tip>
+  </Step>
+
+  <Step title="Render a basic chart">
+    Import `Gantt` and pass an array of tasks. Each task requires at minimum an `id`, `text`, `type`, and either a `start`+`duration` or a `start`+`end` pair.
+
+    ```jsx GanttChart.jsx
+    import { Gantt } from '@svar-ui/react-gantt';
+    import '@svar-ui/react-gantt/all.css';
+
+    const tasks = [
+      {
+        id: 1,
+        text: 'Project planning',
+        progress: 40,
+        parent: 0,
+        type: 'summary',
+        open: true,
+      },
+      {
+        id: 10,
+        start: new Date(2026, 3, 2),
+        duration: 3,
+        text: 'Marketing analysis',
+        progress: 100,
+        parent: 1,
+        type: 'task',
+      },
+      {
+        id: 11,
+        start: new Date(2026, 3, 5),
+        duration: 2,
+        text: 'Discussions',
+        progress: 72,
+        parent: 1,
+        type: 'task',
+      },
+      {
+        id: 12,
+        start: new Date(2026, 3, 8),
+        text: 'Approval of strategy',
+        progress: 100,
+        parent: 1,
+        type: 'milestone',
+      },
+    ];
+
+    const scales = [
+      { unit: 'month', step: 1, format: '%F %Y' },
+      { unit: 'day',   step: 1, format: '%j' },
+    ];
+
+    export default function GanttChart() {
+      return <Gantt tasks={tasks} scales={scales} />;
+    }
+    ```
+
+    The chart renders immediately with drag-and-drop and inline editing enabled by default.
+  </Step>
+
+  <Step title="Add task links (dependencies)">
+    Pass a `links` array to connect tasks. Each link requires an `id`, a `source` task id, a `target` task id, and a `type`.
+
+    ```jsx GanttChart.jsx
+    import { Gantt } from '@svar-ui/react-gantt';
+    import '@svar-ui/react-gantt/all.css';
+
+    const tasks = [
+      {
+        id: 10,
+        start: new Date(2026, 3, 2),
+        duration: 3,
+        text: 'Marketing analysis',
+        progress: 100,
+        parent: 0,
+        type: 'task',
+      },
+      {
+        id: 11,
+        start: new Date(2026, 3, 5),
+        duration: 2,
+        text: 'Discussions',
+        progress: 72,
+        parent: 0,
+        type: 'task',
+      },
+      {
+        id: 12,
+        start: new Date(2026, 3, 8),
+        text: 'Approval of strategy',
+        progress: 100,
+        parent: 0,
+        type: 'milestone',
+      },
+    ];
+
+    const links = [
+      { id: 1, source: 10, target: 11, type: 'e2s' },
+      { id: 2, source: 11, target: 12, type: 'e2s' },
+    ];
+
+    const scales = [
+      { unit: 'month', step: 1, format: '%F %Y' },
+      { unit: 'day',   step: 1, format: '%j' },
+    ];
+
+    export default function GanttChart() {
+      return <Gantt tasks={tasks} links={links} scales={scales} />;
+    }
+    ```
+
+    The `e2s` link type means end-to-start (finish-to-start dependency).
+  </Step>
+
+  <Step title="Access the API via the init prop">
+    Use the `init` prop to receive the Gantt API instance. This unlocks programmatic control: adding tasks, updating data, handling events, and integrating companion components like `Toolbar` and `Editor`.
+
+    ```jsx GanttWithToolbar.jsx
+    import { useState, useMemo } from 'react';
+    import { Gantt, Toolbar, Editor } from '@svar-ui/react-gantt';
+    import '@svar-ui/react-gantt/all.css';
+
+    const tasks = [
+      {
+        id: 1,
+        start: new Date(2026, 3, 2),
+        duration: 4,
+        text: 'Resource planning',
+        progress: 10,
+        parent: 0,
+        type: 'task',
+      },
+      {
+        id: 2,
+        start: new Date(2026, 3, 6),
+        duration: 2,
+        text: 'Getting approval',
+        progress: 10,
+        parent: 0,
+        type: 'task',
+      },
+    ];
+
+    const links = [
+      { id: 1, source: 1, target: 2, type: 'e2s' },
+    ];
+
+    const scales = [
+      { unit: 'month', step: 1, format: '%F %Y' },
+      { unit: 'day',   step: 1, format: '%j' },
+    ];
+
+    export default function GanttWithToolbar() {
+      const [api, setApi] = useState();
+
+      return (
+        <>
+          <Toolbar api={api} />
+          <div style={{ flex: 1 }}>
+            <Gantt
+              init={setApi}
+              tasks={tasks}
+              links={links}
+              scales={scales}
+            />
+            {api && <Editor api={api} />}
+          </div>
+        </>
+      );
+    }
+    ```
+
+    <Note>
+      `init` is called once with the `IApi` instance after the component mounts. Store it in state with `useState` so companion components like `Toolbar` and `Editor` re-render once the API is available.
+    </Note>
+  </Step>
+</Steps>
+
+## Task data reference
+
+The table below summarises the fields you can set on each task object.
+
+| Field      | Type      | Description                                                                 |
+| ---------- | --------- | --------------------------------------------------------------------------- |
+| `id`       | `number`  | Unique task identifier.                                                     |
+| `text`     | `string`  | Display label shown in the grid and on the task bar.                        |
+| `start`    | `Date`    | Start date/time of the task.                                                |
+| `end`      | `Date`    | End date/time. Use instead of `duration`, or omit when `duration` is set.  |
+| `duration` | `number`  | Duration in days (or hours when using an hour-scale). Mutually exclusive with `end`. |
+| `progress` | `number`  | Completion percentage, `0`–`100`.                                           |
+| `type`     | `string`  | Task type: `'task'`, `'summary'`, or `'milestone'`.                        |
+| `parent`   | `number`  | ID of the parent task. Use `0` for top-level tasks.                        |
+| `open`     | `boolean` | Whether a summary task is expanded on first render.                         |
+| `lazy`     | `boolean` | If `true`, children are loaded on demand.                                   |
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
-
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Installation" icon="package" href="/installation">
+    Full installation details, CSS options, TypeScript setup, and framework-specific notes.
+  </Card>
+  <Card title="Configuration" icon="sliders" href="/configuration/tasks-and-links">
+    Customise columns, scales, task types, themes, and more.
+  </Card>
+  <Card title="API reference" icon="code" href="/api/gantt">
+    Explore every prop, event, and method exposed by the Gantt API.
+  </Card>
+  <Card title="Live demos" icon="play" href="https://docs.svar.dev/react/gantt/samples/">
+    Browse interactive examples including drag-and-drop, custom templates, and 10k-task performance tests.
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

@@ -1,0 +1,159 @@
+---
+title: "Critical path"
+description: "Enable critical path calculation and visual highlighting in SVAR React Gantt PRO to identify which tasks directly control your project's end date."
+---
+
+<Warning>
+  Critical path calculation is a **PRO-only** feature. See [PRO features overview](/pro/overview) to get started.
+</Warning>
+
+The critical path is the longest chain of dependent tasks that determines the **earliest possible project completion date**. Any delay on a critical task directly delays the project end. SVAR React Gantt PRO calculates the critical path and visually highlights critical tasks and links.
+
+## The `criticalPath` prop
+
+Pass a `criticalPath` configuration object to enable critical path analysis.
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `criticalPath` | `{ type: 'flexible' \| 'strict' } \| null` | `null` | Enables critical path when set. `null` disables it. |
+
+### Calculation modes
+
+| Mode | Description |
+|---|---|
+| `'flexible'` | A task is critical if delaying it would push the project past `projectEnd`. Tasks near the end of the schedule are highlighted even if there is some float. |
+| `'strict'` | Only tasks with **zero total float** are considered critical. This is the classical CPM (Critical Path Method) definition. |
+
+```jsx
+// Enable critical path in flexible mode
+<Gantt
+  tasks={tasks}
+  links={links}
+  criticalPath={{ type: 'flexible' }}
+  projectStart={new Date(2026, 3, 2)}
+  projectEnd={new Date(2026, 3, 12)}
+/>
+```
+
+```jsx
+// Enable critical path in strict (CPM) mode
+<Gantt
+  tasks={tasks}
+  links={links}
+  criticalPath={{ type: 'strict' }}
+  projectStart={new Date(2026, 3, 2)}
+  projectEnd={new Date(2026, 3, 12)}
+/>
+```
+
+<Note>
+  Set `projectStart` and `projectEnd` alongside `criticalPath` so the algorithm has a defined project window to calculate float against.
+</Note>
+
+## How critical path is calculated
+
+The algorithm performs a **forward and backward pass** across the dependency graph:
+
+1. **Forward pass** — calculates the earliest start and finish for every task, starting from `projectStart`.
+2. **Backward pass** — calculates the latest allowable start and finish for every task, working backwards from `projectEnd`.
+3. **Float calculation** — total float = latest start − earliest start.
+4. Tasks and links where float equals zero (strict mode) or falls below the threshold (flexible mode) are marked as critical.
+
+Only **Finish-to-Start** dependency links participate in the critical path calculation.
+
+## Visual highlighting
+
+When `criticalPath` is enabled, the Gantt automatically applies a distinct visual style to:
+
+- **Critical task bars** — rendered in a red/accent colour.
+- **Critical dependency links** — rendered in a matching accent colour to trace the critical chain.
+
+No additional configuration is required for the visual styling; it is driven by the component's built-in CSS.
+
+## Toggling critical path at runtime
+
+Because `criticalPath` is a reactive prop, you can toggle it on and off without remounting the component:
+
+```jsx
+import { useState } from 'react';
+import { Gantt } from '@svar-ui/react-gantt';
+import '@svar-ui/react-gantt/all.css';
+
+export default function App() {
+  const [criticalPath, setCriticalPath] = useState({ type: 'flexible' });
+
+  return (
+    <>
+      <button onClick={() =>
+        setCriticalPath((prev) =>
+          prev ? null : { type: 'flexible' }
+        )
+      }>
+        {criticalPath ? 'Hide critical path' : 'Show critical path'}
+      </button>
+      <Gantt
+        tasks={tasks}
+        links={links}
+        criticalPath={criticalPath}
+        projectStart={new Date(2026, 3, 2)}
+        projectEnd={new Date(2026, 3, 12)}
+      />
+    </>
+  );
+}
+```
+
+## Full example
+
+This example mirrors the `ProCriticalPath` demo, allowing the user to switch between flexible and strict modes and adjust project boundaries:
+
+```jsx
+import { useState, useMemo } from 'react';
+import { Gantt, Editor } from '@svar-ui/react-gantt';
+import '@svar-ui/react-gantt/all.css';
+
+const tasks = [
+  { id: 1, text: 'Kickoff',      type: 'task', start: new Date(2026, 3, 2),  duration: 2, progress: 100 },
+  { id: 2, text: 'Design',       type: 'task', start: new Date(2026, 3, 6),  duration: 4, progress: 50 },
+  { id: 3, text: 'Development',  type: 'task', start: new Date(2026, 3, 12), duration: 6, progress: 0 },
+  { id: 4, text: 'QA',           type: 'task', start: new Date(2026, 3, 20), duration: 3, progress: 0 },
+  { id: 5, text: 'Parallel work',type: 'task', start: new Date(2026, 3, 6),  duration: 2, progress: 0 },
+];
+
+const links = [
+  { id: 1, source: 1, target: 2, type: 'e2s' },
+  { id: 2, source: 2, target: 3, type: 'e2s' },
+  { id: 3, source: 3, target: 4, type: 'e2s' },
+  { id: 4, source: 1, target: 5, type: 'e2s' },
+];
+
+export default function App() {
+  const [api, setApi] = useState();
+  const [pathMode, setPathMode] = useState('flexible');
+  const [projectEnd, setProjectEnd] = useState(new Date(2026, 3, 24));
+
+  return (
+    <>
+      <label>
+        Mode:
+        <select
+          value={pathMode}
+          onChange={(e) => setPathMode(e.target.value)}
+        >
+          <option value="flexible">Flexible</option>
+          <option value="strict">Strict</option>
+        </select>
+      </label>
+      <Gantt
+        init={setApi}
+        tasks={tasks}
+        links={links}
+        criticalPath={{ type: pathMode }}
+        projectStart={new Date(2026, 3, 2)}
+        projectEnd={projectEnd}
+      />
+      {api && <Editor api={api} />}
+    </>
+  );
+}
+```

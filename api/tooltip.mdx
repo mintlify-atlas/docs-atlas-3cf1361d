@@ -1,0 +1,182 @@
+---
+title: "<Tooltip> / <Fullscreen>"
+description: "Props and usage for the Gantt tooltip and fullscreen wrapper components."
+---
+
+## Tooltip
+
+The `<Tooltip>` component wraps `<Gantt>` as a container and shows a floating tooltip when the user hovers over a task bar. By default it displays the task name. Pass a custom `content` component to render richer information.
+
+### Import
+
+```jsx
+import { Tooltip } from '@svar-ui/react-gantt';
+```
+
+### Basic usage (default tooltip)
+
+Wrap `<Gantt>` with `<Tooltip>` and wire up the same `api` instance:
+
+```jsx
+import { useState } from 'react';
+import { Gantt, Tooltip } from '@svar-ui/react-gantt';
+import '@svar-ui/react-gantt/all.css';
+
+export default function App() {
+  const [api, setApi] = useState(null);
+
+  return (
+    <Tooltip api={api}>
+      <Gantt
+        init={setApi}
+        tasks={tasks}
+        links={links}
+        scales={scales}
+      />
+    </Tooltip>
+  );
+}
+```
+
+Hovering over a task bar shows its `text` field in a small floating label.
+
+### Props
+
+<ParamField path="api" type="IApi">
+  The Gantt API instance. Used to look up full task objects when the cursor moves over a task bar. Obtain it from the `init` callback or a `ref` on `<Gantt>`.
+</ParamField>
+
+<ParamField path="content" type="FC<{ data: ITask }>">
+  Custom React component rendered inside the tooltip popup. Receives the full `ITask` object for the hovered task as the `data` prop. When omitted, the default tooltip displays the task's `text` field.
+</ParamField>
+
+<ParamField path="children" type="ReactNode">
+  The content to wrap — typically the `<Gantt>` component. Mouse-move events within this subtree trigger tooltip positioning.
+</ParamField>
+
+### Custom tooltip template
+
+Create a component that accepts `{ data: ITask }` and returns your custom markup:
+
+<CodeGroup>
+
+```jsx MyTooltipContent.jsx
+import { format } from 'date-fns';
+
+export default function MyTooltipContent({ data }) {
+  if (!data) return null;
+
+  return (
+    <div className="my-tooltip">
+      <div>
+        <strong>{data.type}:</strong> {data.text}
+      </div>
+      <div>
+        <strong>Start:</strong> {format(data.start, 'yyyy-MM-dd')}
+      </div>
+      {data.end && (
+        <div>
+          <strong>End:</strong> {format(data.end, 'yyyy-MM-dd')}
+        </div>
+      )}
+      <div>
+        <strong>Progress:</strong> {data.progress}%
+      </div>
+    </div>
+  );
+}
+```
+
+```jsx App.jsx
+import { useState } from 'react';
+import { Gantt, Tooltip } from '@svar-ui/react-gantt';
+import MyTooltipContent from './MyTooltipContent';
+import '@svar-ui/react-gantt/all.css';
+
+export default function App() {
+  const [api, setApi] = useState(null);
+
+  return (
+    <Tooltip api={api} content={MyTooltipContent}>
+      <Gantt
+        init={setApi}
+        tasks={tasks}
+        links={links}
+        scales={scales}
+      />
+    </Tooltip>
+  );
+}
+```
+
+</CodeGroup>
+
+<Note>
+  The `data` prop passed to your `content` component is `null` when the cursor is not over a task bar (for example when hovering over an empty timeline cell). Guard against `null` before reading task properties.
+</Note>
+
+### Tooltip positioning
+
+The `<Tooltip>` component tracks the cursor position via `onMouseMove` on its container and positions the floating tooltip relative to the hovered element. The tooltip is automatically clamped to stay within the visible area of the container.
+
+---
+
+## Fullscreen
+
+The `<Fullscreen>` component wraps any content and adds a toggle button in the bottom-right corner that expands the content to fill the browser viewport using the native [Fullscreen API](https://developer.mozilla.org/en-US/docs/Web/API/Fullscreen_API). An optional keyboard shortcut can also trigger the toggle.
+
+<Note>
+  `Fullscreen` is exported from `@svar-ui/react-gantt` via the TypeScript type definitions. In runtime builds it is re-exported from the `@svar-ui/react-core` package. If the named import doesn't resolve, import directly from core: `import { Fullscreen } from '@svar-ui/react-core'`.
+</Note>
+
+### Import
+
+```jsx
+import { Fullscreen } from '@svar-ui/react-gantt';
+```
+
+### Props
+
+<ParamField path="hotkey" type="string">
+  Keyboard shortcut string that toggles fullscreen mode, for example `'ctrl+shift+f'`. When omitted, fullscreen can only be toggled via the icon button. The shortcut listener is attached globally when the component mounts.
+</ParamField>
+
+<ParamField path="children" type="ReactNode">
+  The content to render inside the fullscreen container. Typically a `<Gantt>` component, optionally combined with a `<Toolbar>` or other companions.
+</ParamField>
+
+### Usage
+
+```jsx
+import { Gantt, Fullscreen } from '@svar-ui/react-gantt';
+import '@svar-ui/react-gantt/all.css';
+
+export default function App() {
+  return (
+    <Fullscreen hotkey="ctrl+shift+f">
+      <Gantt tasks={tasks} links={links} scales={scales} />
+    </Fullscreen>
+  );
+}
+```
+
+Clicking the expand icon in the corner (or pressing the hotkey) requests fullscreen. The icon changes to a collapse icon while in fullscreen mode. Pressing `Esc` or clicking the icon again exits fullscreen.
+
+### Combining with Toolbar
+
+```jsx
+import { useState } from 'react';
+import { Gantt, Toolbar, Editor, Fullscreen } from '@svar-ui/react-gantt';
+
+export default function App() {
+  const [api, setApi] = useState();
+
+  return (
+    <Fullscreen hotkey="ctrl+shift+f">
+      <Toolbar api={api} />
+      <Gantt init={setApi} tasks={tasks} links={links} scales={scales} />
+      {api && <Editor api={api} />}
+    </Fullscreen>
+  );
+}
+```

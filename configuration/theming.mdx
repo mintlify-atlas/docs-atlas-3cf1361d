@@ -1,0 +1,214 @@
+---
+title: "Theming"
+description: "Apply built-in themes, import CSS, customize colors with CSS variables, and style the timeline with highlightTime and cellBorders."
+---
+
+SVAR React Gantt ships with three ready-made themes and a CSS custom-property system for deeper customization.
+
+## Built-in themes
+
+| Component | Appearance |
+|---|---|
+| `Material` | Google Material Design — clean, flat, uses Roboto font |
+| `Willow` | SVAR default light theme |
+| `WillowDark` | Dark variant of the Willow theme |
+
+## Applying a theme
+
+Import the theme component and wrap `<Gantt>` with it.
+
+<Tabs>
+  <Tab title="Material">
+    ```jsx
+    import { Gantt, Material } from '@svar-ui/react-gantt';
+    import '@svar-ui/react-gantt/all.css';
+
+    export default function App() {
+      return (
+        <Material>
+          <Gantt tasks={tasks} links={links} />
+        </Material>
+      );
+    }
+    ```
+  </Tab>
+  <Tab title="Willow">
+    ```jsx
+    import { Gantt, Willow } from '@svar-ui/react-gantt';
+    import '@svar-ui/react-gantt/all.css';
+
+    export default function App() {
+      return (
+        <Willow>
+          <Gantt tasks={tasks} links={links} />
+        </Willow>
+      );
+    }
+    ```
+  </Tab>
+  <Tab title="WillowDark">
+    ```jsx
+    import { Gantt, WillowDark } from '@svar-ui/react-gantt';
+    import '@svar-ui/react-gantt/all.css';
+
+    export default function App() {
+      return (
+        <WillowDark>
+          <Gantt tasks={tasks} links={links} />
+        </WillowDark>
+      );
+    }
+    ```
+  </Tab>
+</Tabs>
+
+All three theme components accept a `fonts` prop (default `true`) that loads the theme's webfont. Set it to `false` if you are already loading the font yourself.
+
+```jsx
+<Material fonts={false}>
+  <Gantt tasks={tasks} links={links} />
+</Material>
+```
+
+## CSS imports
+
+You must import at least one CSS file.
+
+<Tabs>
+  <Tab title="all.css (recommended)">
+    Imports the component styles plus the styles for all SVAR UI widgets (editor, toolbar, context menu, etc.).
+
+    ```jsx
+    import '@svar-ui/react-gantt/all.css';
+    ```
+  </Tab>
+  <Tab title="style.css (component only)">
+    Imports only the core Gantt chart styles. Use this if you want to control which widget styles are loaded.
+
+    ```jsx
+    import '@svar-ui/react-gantt/style.css';
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  `all.css` is the right choice for most applications. Use `style.css` only if you need fine-grained control over which CSS is bundled.
+</Note>
+
+## Dark mode
+
+Use `WillowDark` as a drop-in replacement for `Willow` to switch to a dark color scheme. The dark theme sets a CSS class on its root element that overrides all CSS custom properties to dark-mode values.
+
+```jsx
+import { Gantt, WillowDark } from '@svar-ui/react-gantt';
+
+export default function App() {
+  return (
+    <WillowDark>
+      <Gantt tasks={tasks} links={links} />
+    </WillowDark>
+  );
+}
+```
+
+## CSS custom properties
+
+All theme colors are exposed as CSS custom properties. Override them in your own stylesheet to customize colors without forking a theme.
+
+```css
+/* In your global CSS file */
+:root {
+  --wx-gantt-bar-background: #4a90d9;
+  --wx-gantt-bar-color: #ffffff;
+  --wx-gantt-milestone-background: #e8a838;
+  --wx-gantt-summary-background: #7b68ee;
+  --wx-gantt-progress-background: #2c6fad;
+  --wx-gantt-link-color: #999;
+}
+```
+
+<Tip>
+  Use your browser's DevTools to inspect the rendered Gantt and discover all available `--wx-` custom properties for the current theme.
+</Tip>
+
+## `cellBorders` prop
+
+Controls whether the timeline chart cells show only column borders or full (row + column) borders.
+
+<ParamField body="cellBorders" type="'column' | 'full'" default="'full'">
+  - `'full'` — horizontal and vertical grid lines (default)
+  - `'column'` — vertical lines only, for a cleaner look
+</ParamField>
+
+```jsx
+<Gantt tasks={tasks} links={links} cellBorders="column" />
+```
+
+## `highlightTime` prop
+
+Highlight individual cells in the timeline by returning a CSS class name from a callback function. This is how you visually distinguish weekends, off-hours, or any custom intervals.
+
+<ParamField body="highlightTime" type="(date: Date, unit: 'day' | 'hour') => string">
+  Function called for each visible cell. Return a non-empty CSS class name to apply it to that cell, or an empty string to apply no class.
+</ParamField>
+
+```jsx
+// Highlight weekends on a day-level scale
+const highlightTime = (date, unit) => {
+  if (unit === 'day') {
+    const day = date.getDay();
+    return day === 0 || day === 6 ? 'wx-weekend' : '';
+  }
+  return '';
+};
+
+<Gantt
+  tasks={tasks}
+  links={links}
+  scales={[{ unit: 'month', step: 1, format: '%F %Y' }, { unit: 'day', step: 1, format: '%j' }]}
+  highlightTime={highlightTime}
+/>
+```
+
+For an hour-level timeline, you can shade off-hours:
+
+```jsx
+const highlightTime = (date, unit) => {
+  const h = date.getHours();
+  if (unit === 'hour' && (h < 8 || h > 21)) return 'wx-weekend';
+  return '';
+};
+```
+
+The class `wx-weekend` is predefined by all built-in themes to give a muted background. You can also return any custom class and style it yourself.
+
+## Custom task templates
+
+Replace the entire task bar rendering with a custom React component via `taskTemplate`.
+
+<ParamField body="taskTemplate" type="FC<{ data: ITask; api: IApi; onaction: Function }>" default="null">
+  When provided, this component is rendered inside every task bar instead of the default progress + label layout. Receives the full task object as `data`, the Gantt API as `api`, and an `onaction` callback for triggering built-in actions.
+</ParamField>
+
+```jsx
+function CustomTask({ data }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0 8px', height: '100%' }}>
+      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {data.text}
+      </span>
+      <span style={{ fontSize: 11, opacity: 0.7 }}>{data.progress}%</span>
+    </div>
+  );
+}
+
+<Gantt
+  tasks={tasks}
+  links={links}
+  taskTemplate={CustomTask}
+/>
+```
+
+<Warning>
+  `taskTemplate` replaces the default bar content entirely. Drag handles and resize handles are still rendered by the component; only the inner content area is replaced.
+</Warning>

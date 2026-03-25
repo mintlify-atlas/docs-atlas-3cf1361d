@@ -1,0 +1,290 @@
+---
+title: "Scales and timeline"
+description: "Configure the timeline header rows, date range, cell sizing, zoom behaviour, and custom scale units."
+---
+
+The timeline is the chart area to the right of the grid. Its header rows (scales) and horizontal granularity are controlled by a handful of props on `<Gantt>`.
+
+## The `scales` prop
+
+`scales` is an array of scale row definitions, ordered from largest time unit (top) to smallest (bottom). Each entry renders as one header row above the task bars.
+
+```jsx
+<Gantt
+  tasks={tasks}
+  links={links}
+  scales={[
+    { unit: 'month', step: 1, format: '%F %Y' },
+    { unit: 'day',   step: 1, format: '%j' },
+  ]}
+/>
+```
+
+The default scales show a month row followed by a day row.
+
+### Scale object fields
+
+<ParamField body="unit" type="string" required>
+  Time unit for this row. Built-in values: `'minute'`, `'hour'`, `'day'`, `'week'`, `'month'`, `'quarter'`, `'year'`. Custom units can be registered with [`registerScaleUnit`](#custom-scale-units).
+</ParamField>
+
+<ParamField body="step" type="number" default="1">
+  How many units each cell spans. For example `{ unit: 'day', step: 7 }` gives one cell per week without using the `'week'` unit.
+</ParamField>
+
+<ParamField body="format" type="string | ((start: Date, end: Date) => string)">
+  Label displayed in each cell. Accepts a strftime-style format string or a function that receives the cell's start and end dates and returns a string.
+
+  Common format tokens:
+
+  | Token | Output |
+  |---|---|
+  | `%Y` | 4-digit year |
+  | `%F` | Full month name |
+  | `%M` | Short month name |
+  | `%j` | Day of month |
+  | `%H` | Hour (24h) |
+  | `%i` | Minutes |
+  | `%W` | ISO week number |
+  | `%Q` | Quarter number |
+  | `%w` | Week number (locale) |
+</ParamField>
+
+<ParamField body="css" type="(date: Date) => string">
+  Function that returns a CSS class name for each cell. Use it to highlight weekends or other special periods.
+
+  ```jsx
+  const dayStyle = (date) =>
+    date.getDay() === 0 || date.getDay() === 6 ? 'sday' : '';
+
+  scales={[{ unit: 'day', step: 1, format: '%j', css: dayStyle }]}
+  ```
+</ParamField>
+
+## Common scale configurations
+
+<CodeGroup>
+
+```jsx month / day
+const scales = [
+  { unit: 'month', step: 1, format: '%F %Y' },
+  { unit: 'day',   step: 1, format: '%j' },
+];
+```
+
+```jsx week / day
+const scales = [
+  { unit: 'week',  step: 1, format: 'Week %W' },
+  { unit: 'day',   step: 1, format: '%M %j' },
+];
+```
+
+```jsx year / quarter / month / week
+const scales = [
+  { unit: 'year',    step: 1, format: '%Y' },
+  { unit: 'quarter', step: 1, format: '%Q %Y' },
+  { unit: 'month',   step: 1, format: '%F %Y' },
+  { unit: 'week',    step: 1, format: 'Week %W' },
+];
+```
+
+```jsx day / hour
+const scales = [
+  { unit: 'day',  step: 1, format: '%M %j' },
+  { unit: 'hour', step: 1, format: '%H:%i' },
+];
+```
+
+</CodeGroup>
+
+## Cell sizing
+
+<ParamField body="cellWidth" type="number" default="100">
+  Width in pixels of the smallest-unit cell. All timeline columns are this wide. Increase it to make bars less compressed.
+</ParamField>
+
+<ParamField body="cellHeight" type="number" default="38">
+  Height in pixels of each task row, including the task bar.
+</ParamField>
+
+<ParamField body="scaleHeight" type="number" default="36">
+  Height in pixels of each scale header row. Applies to every scale row.
+</ParamField>
+
+## Fixed date range
+
+By default the timeline adjusts its start and end to fit the tasks (`autoScale: true`). You can pin the visible range with `start` and `end`.
+
+```jsx
+<Gantt
+  tasks={tasks}
+  links={links}
+  scales={scales}
+  start={new Date(2026, 3, 1)}   // April 1 2026
+  end={new Date(2026, 4, 12)}    // May 12 2026
+/>
+```
+
+<ParamField body="start" type="Date" default="null">
+  Left edge of the visible timeline. When `null` the timeline starts before the earliest task.
+</ParamField>
+
+<ParamField body="end" type="Date" default="null">
+  Right edge of the visible timeline. When `null` the timeline ends after the latest task.
+</ParamField>
+
+<ParamField body="autoScale" type="boolean" default="true">
+  When `true` the timeline expands automatically to always fit all tasks. Set to `false` when providing a fixed `start` / `end`.
+</ParamField>
+
+## `lengthUnit`
+
+`lengthUnit` controls the granularity of the smallest cell on the timeline. It affects how far a task bar moves when you drag it one cell, and how the scroll position snaps.
+
+```jsx
+<Gantt
+  tasks={tasks}
+  links={links}
+  scales={[
+    { unit: 'day',  step: 1, format: '%M %j' },
+    { unit: 'hour', step: 1, format: '%H:%i' },
+  ]}
+  lengthUnit="minute"   // snaps to the minute
+  durationUnit="hour"
+/>
+```
+
+<ParamField body="lengthUnit" type="'minute' | 'hour' | 'day' | 'week' | 'month' | 'quarter'" default="'day'">
+  The unit that one cell column represents on the timeline. Must match (or be finer than) the smallest `unit` in your `scales` array.
+</ParamField>
+
+## Zoom
+
+The `zoom` prop enables interactive zooming. Hold **Ctrl** and scroll the mouse wheel over the chart to zoom in and out.
+
+<Tabs>
+  <Tab title="Default zoom">
+    Pass `zoom={true}` to use the built-in zoom levels.
+
+    ```jsx
+    <Gantt tasks={tasks} links={links} zoom />
+    ```
+
+    The built-in levels cycle through year → quarter/month → month/week → month/day → day/hour scales.
+  </Tab>
+  <Tab title="Custom zoom levels">
+    Pass a configuration object with a `levels` array to define your own zoom presets.
+
+    ```jsx
+    const zoomConfig = {
+      level: 3,   // initial level index (0-based)
+      levels: [
+        {
+          minCellWidth: 200,
+          maxCellWidth: 400,
+          scales: [{ unit: 'year', step: 1, format: '%Y' }],
+        },
+        {
+          minCellWidth: 100,
+          scales: [
+            { unit: 'month', step: 1, format: '%F %Y' },
+            { unit: 'week',  step: 1, format: 'Week %W' },
+          ],
+        },
+        {
+          maxCellWidth: 200,
+          scales: [
+            { unit: 'month', step: 1, format: '%F %Y' },
+            { unit: 'day',   step: 1, format: '%j' },
+          ],
+        },
+        {
+          minCellWidth: 25,
+          maxCellWidth: 100,
+          scales: [
+            { unit: 'day',  step: 1, format: '%M %j' },
+            { unit: 'hour', step: 6, format: (a, b) => `${format(a,'HH:mm')} - ${format(b,'HH:mm')}` },
+          ],
+        },
+      ],
+    };
+
+    <Gantt tasks={tasks} links={links} zoom={zoomConfig} />
+    ```
+  </Tab>
+</Tabs>
+
+### Zoom level object fields
+
+<ParamField body="scales" type="IScale[]" required>
+  The scale rows to display at this zoom level.
+</ParamField>
+
+<ParamField body="minCellWidth" type="number">
+  The narrowest cell width this level will allow before zooming in to the next finer level.
+</ParamField>
+
+<ParamField body="maxCellWidth" type="number">
+  The widest cell width this level will allow before zooming out to the next coarser level.
+</ParamField>
+
+<Note>
+  The `level` field on the zoom config object sets the **initial** level index. Levels are 0-based from the coarsest to the finest.
+</Note>
+
+## Custom scale units
+
+Register a custom unit name with `registerScaleUnit` before rendering the component.
+
+```jsx
+import { registerScaleUnit, Gantt } from '@svar-ui/react-gantt';
+import { startOfMonth, endOfMonth, isSameMonth, addMonths, addDays } from 'date-fns';
+
+registerScaleUnit('sprint', {
+  // Returns the start of the sprint that contains `date`
+  start: (date) => {
+    const s = startOfMonth(date);
+    if (date.getDate() >= 16) s.setDate(16);
+    return s;
+  },
+  // Returns the end of the sprint that contains `date`
+  end: (date) => {
+    const e = endOfMonth(date);
+    if (date.getDate() < 16) e.setDate(15);
+    return e;
+  },
+  // Returns true when two dates fall within the same sprint cell
+  isSame: (a, b) => {
+    if (!isSameMonth(a, b)) return false;
+    return (a.getDate() < 16) === (b.getDate() < 16);
+  },
+  // Advances `date` by `amount` sprints
+  add: (date, amount) => addDays(addMonths(date, Math.floor(amount / 2)), (amount % 2) * 16),
+});
+
+// Then use 'sprint' as any other unit
+const scales = [
+  { unit: 'month',  step: 1, format: '%F %Y' },
+  { unit: 'sprint', step: 1, format: (d) => `Sprint ${d.getDate() < 16 ? 'A' : 'B'}` },
+  { unit: 'day',    step: 1, format: '%j' },
+];
+```
+
+<Warning>
+  Call `registerScaleUnit` once at module level or inside a ref-guard to avoid re-registering on every render.
+</Warning>
+
+## Props reference
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `scales` | `IScale[]` | month + day | Header row definitions |
+| `zoom` | `boolean \| IZoomConfig` | `false` | Enables Ctrl+scroll zoom |
+| `lengthUnit` | `string` | `'day'` | Smallest timeline cell unit |
+| `durationUnit` | `string` | `'day'` | Unit for numeric `duration` values |
+| `cellWidth` | `number` | `100` | Width of each timeline cell in px |
+| `cellHeight` | `number` | `38` | Height of each task row in px |
+| `scaleHeight` | `number` | `36` | Height of each scale header row in px |
+| `start` | `Date \| null` | `null` | Fixed left boundary of the timeline |
+| `end` | `Date \| null` | `null` | Fixed right boundary of the timeline |
+| `autoScale` | `boolean` | `true` | Auto-expand timeline to fit all tasks |

@@ -1,0 +1,265 @@
+---
+title: 'Event Handling'
+description: 'Subscribe to events, dispatch actions, and intercept or modify actions with the Gantt API.'
+keywords: ['gantt', 'api', 'events', 'actions', 'intercept', 'exec']
+---
+
+Every interaction in the Gantt — drag, drop, edit, add, delete — flows through a central event bus. The `IApi` object you receive from the `init` prop is your handle to that bus.
+
+## Receiving the API
+
+Pass a callback to the `init` prop. It is called once, synchronously, after the Gantt store is initialised.
+
+```jsx
+import { useState, useCallback } from 'react';
+import { Gantt } from '@svar-ui/react-gantt';
+
+export default function App() {
+  const [api, setApi] = useState();
+
+  // Simple case — just store the api:
+  return <Gantt init={setApi} tasks={tasks} scales={scales} />;
+}
+```
+
+For more complex setups, use a `useCallback` to subscribe to events before the component re-renders:
+
+```jsx
+const init = useCallback((api) => {
+  setApi(api);
+
+  api.on('add-task', ({ id }) => {
+    api.exec('show-editor', { id });
+  });
+}, []);
+
+<Gantt init={init} tasks={tasks} scales={scales} />
+```
+
+<Note>
+  The `init` callback is also exposed as the `ref` forwarding target. You can get the API via a React ref: `<Gantt ref={ganttRef} ... />` and then `ganttRef.current.exec(...)`.
+</Note>
+
+## api.on() — subscribing to events
+
+`api.on(eventName, handler)` subscribes to an event **after** it has been processed. Use this for side effects such as logging, syncing to external state, or triggering secondary actions.
+
+```js
+// Called after a task is added to the store.
+api.on('add-task', ({ id, task }) => {
+  console.log('Task added:', id, task);
+});
+
+// Called after a task is updated.
+api.on('update-task', ({ id, task }) => {
+  saveToServer(id, task);
+});
+
+// Called after a task is deleted.
+api.on('delete-task', ({ id }) => {
+  removeFromServer(id);
+});
+
+// Called after the user selects a task.
+api.on('select-task', ({ id }) => {
+  setSelectedId(id);
+});
+```
+
+`api.on()` returns an unsubscribe function:
+
+```js
+const off = api.on('update-task', handler);
+// Later:
+off(); // Unsubscribe.
+```
+
+## api.exec() — dispatching actions
+
+`api.exec(actionName, payload)` triggers any action programmatically — the same actions the UI dispatches internally.
+
+```js
+// Add a new task after the currently selected task.
+api.exec('add-task', {
+  task: { text: 'New task', type: 'task' },
+  target: selectedId,
+  mode: 'after',
+});
+
+// Update a task's fields.
+api.exec('update-task', {
+  id: 42,
+  task: { text: 'Renamed', progress: 80 },
+});
+
+// Delete a task.
+api.exec('delete-task', { id: 42 });
+
+// Move a task up or down in the list.
+api.exec('move-task', { id: 42, mode: 'up' });
+api.exec('move-task', { id: 42, mode: 'down' });
+
+// Indent / outdent.
+api.exec('indent-task', { id: 42 });
+api.exec('outdent-task', { id: 42 });
+
+// Select a task.
+api.exec('select-task', { id: 42 });
+
+// Open / close the editor for a task.
+api.exec('show-editor', { id: 42 });
+api.exec('show-editor', { id: null }); // Close editor.
+
+// Undo / redo (requires undo={true} on <Gantt>).
+api.exec('undo');
+api.exec('redo');
+```
+
+### All built-in action names
+
+| Action | Key payload fields | Description |
+|--------|--------------------|-------------|
+| `add-task` | `task`, `target`, `mode` | Insert a new task. |
+| `update-task` | `id`, `task` | Update task fields. |
+| `delete-task` | `id` | Delete a task and its subtree. |
+| `select-task` | `id` | Set the selected task. |
+| `move-task` | `id`, `mode` (`'up'`/`'down'`) | Reorder in the list. |
+| `indent-task` | `id` | Make the task a child of the one above. |
+| `outdent-task` | `id` | Move the task one level up. |
+| `drag-task` | `id`, `start`, `end`, `top` | Drag on the chart. |
+| `show-editor` | `id` | Open/close the editor. |
+| `add-link` | `link` | Create a dependency link. |
+| `delete-link` | `id` | Delete a link. |
+| `update-link` | `id`, `link` | Update a link. |
+| `scroll-chart` | `left` | Programmatic chart scroll. |
+| `provide-data` | `id`, `data` | Feed lazy-loaded child data. |
+| `undo` | — | Undo last action. |
+| `redo` | — | Redo last undone action. |
+
+## api.intercept() — blocking or modifying actions
+
+`api.intercept(actionName, handler)` runs your callback **before** the action is processed. Return `false` to cancel; return a modified payload object to change the action's data.
+
+```js
+const init = useCallback((api) => {
+  setApi(api);
+
+  // Block dragging tasks on the timeline while a flag is off.
+  api.intercept('drag-task', (ev) => {
+    if (!isDragEnabled) return false;
+  });
+
+  // Prevent reordering while a flag is off.
+  // ev.top is set for vertical reorder; ev.left/width for timeline drag.
+  api.intercept('drag-task', (ev) => {
+    if (typeof ev.top !== 'undefined') return isReorderEnabled;
+    return isDragEnabled;
+  });
+
+  // Prevent adding links.
+  api.intercept('add-link', () => {
+    return canAddLinks;
+  });
+}, []);
+```
+
+<Tip>
+  Use `api.intercept()` for validation rules or permission checks that should block the action entirely. Use `api.on()` for side effects after the action completes.
+</Tip>
+
+## Callback event props
+
+As an alternative to `api.on()`, you can pass event handler props directly on `<Gantt>`. The prop name is the camelCase action name prefixed with `on`.
+
+```jsx
+<Gantt
+  tasks={tasks}
+  scales={scales}
+  onAddTask={({ id, task }) => console.log('added', id)}
+  onUpdateTask={({ id, task }) => saveToServer(id, task)}
+  onDeleteTask={({ id }) => removeFromServer(id)}
+  onSelectTask={({ id }) => setSelected(id)}
+  onDragTask={({ id, start, end }) => console.log('dragged', id)}
+  onAddLink={({ link }) => console.log('link added', link)}
+  onDeleteLink={({ id }) => console.log('link deleted', id)}
+  onScrollChart={({ left }) => console.log('scrolled to', left)}
+/>
+```
+
+These props are triggered **after** the action completes — they are equivalent to `api.on()` handlers.
+
+## api.getState() and api.getReactiveState()
+
+`api.getState()` returns a plain snapshot of the current store state. Use it for one-time reads.
+
+```js
+const state = api.getState();
+console.log(state.tasks);    // Flat array of all task objects.
+console.log(state.links);    // Link store.
+console.log(state.selected); // Array of selected task ids.
+```
+
+`api.getReactiveState()` returns a reactive store object you can subscribe to outside of React:
+
+```js
+const rs = api.getReactiveState();
+const unsub = rs.tasks.subscribe((tasks) => {
+  console.log('tasks changed', tasks);
+});
+// Later:
+unsub();
+```
+
+## api.getTask(id)
+
+Read a single task from the store by id:
+
+```js
+const task = api.getTask(42);
+console.log(task.text, task.start, task.end);
+```
+
+## api.serialize()
+
+Export the full current state (tasks and links) as a plain JSON-serialisable object:
+
+```js
+const { tasks, links } = api.serialize();
+fetch('/api/save', {
+  method: 'POST',
+  body: JSON.stringify({ tasks, links }),
+});
+```
+
+## setNext — chaining handlers
+
+`api.setNext(handler)` inserts a custom handler into the action processing pipeline. This is how `RestDataProvider` from `@svar-ui/gantt-data-provider` intercepts actions to sync changes to the server.
+
+```js
+import { RestDataProvider } from '@svar-ui/gantt-data-provider';
+
+const provider = new RestDataProvider('https://api.example.com');
+
+const init = (api) => {
+  setApi(api);
+
+  // All actions flow through the provider before reaching the store.
+  api.setNext(provider);
+};
+```
+
+See [Performance and Data Loading](/guides/performance) for the lazy-loading pattern that builds on `setNext`.
+
+## Quick reference
+
+| Method | When to use |
+|--------|-------------|
+| `api.on(event, fn)` | Side effects after an action completes. |
+| `api.exec(action, payload)` | Trigger any action programmatically. |
+| `api.intercept(action, fn)` | Block or modify an action before it runs. |
+| `api.getState()` | One-time synchronous state snapshot. |
+| `api.getReactiveState()` | Subscribe to store changes outside React. |
+| `api.getTask(id)` | Read a single task from the store. |
+| `api.serialize()` | Export tasks and links as plain objects. |
+| `api.setNext(handler)` | Insert a middleware step in the action pipeline. |
+| `api.detach(fn)` | Remove a previously attached `on`/`intercept` handler. |

@@ -1,0 +1,315 @@
+---
+title: "<Editor>"
+description: "Props, configuration, and customization API for the Gantt task editor component."
+---
+
+The `<Editor>` component renders a task edit form that opens when a task is activated. It can be displayed as a sidebar panel or a modal dialog. It connects to the Gantt through the shared `IApi` instance.
+
+## Import
+
+```jsx
+import {
+  Editor,
+  getEditorItems,
+  defaultEditorItems,
+  registerEditorItem,
+} from '@svar-ui/react-gantt';
+```
+
+## Basic usage
+
+```jsx
+import { useState, useCallback } from 'react';
+import { Gantt, Editor } from '@svar-ui/react-gantt';
+import '@svar-ui/react-gantt/all.css';
+
+export default function App() {
+  const [api, setApi] = useState();
+
+  const init = useCallback((ganttApi) => {
+    setApi(ganttApi);
+    // Open the editor automatically when a task is added
+    ganttApi.on('add-task', ({ id }) => {
+      ganttApi.exec('show-editor', { id });
+    });
+  }, []);
+
+  return (
+    <>
+      <Gantt init={init} tasks={tasks} links={links} scales={scales} />
+      {api && <Editor api={api} />}
+    </>
+  );
+}
+```
+
+## Props
+
+<ParamField path="api" type="IApi">
+  The Gantt API instance. Obtain it from the `init` callback or a `ref` on `<Gantt>`. Required to read the active task and dispatch save/delete actions.
+</ParamField>
+
+<ParamField path="items" type="IEditorItem[]" default="[]">
+  Custom field definitions for the editor form. When non-empty, replaces the default set of fields. When empty, the default fields from `getEditorItems()` are used.
+
+  ```ts
+  interface IEditorItem {
+    key: string;           // task property to read/write
+    comp: string;          // registered editor component name
+    label?: string;
+    options?: any[];       // for select / radio fields
+    required?: boolean;
+    validation?: (value: any) => boolean;
+    validationMessage?: string;
+    config?: Record<string, any>;
+    isDisabled?: (task: ITask, state: IConfig) => boolean;
+    isHidden?: (task: ITask, state: IConfig) => boolean;
+  }
+  ```
+</ParamField>
+
+<ParamField path="placement" type="'sidebar' | 'modal'" default="'sidebar'">
+  Controls where the editor is rendered. `'sidebar'` positions it alongside the Gantt chart; `'modal'` opens it as an overlay dialog.
+</ParamField>
+
+<ParamField path="layout" type="string" default="'default'">
+  Layout variant passed to the underlying editor widget.
+</ParamField>
+
+<ParamField path="readonly" type="boolean" default="false">
+  When `true`, all fields are rendered as read-only text and no save/delete buttons are shown in the top bar.
+</ParamField>
+
+<ParamField path="autoSave" type="boolean" default="true">
+  When `true`, changes are saved immediately as each field is edited. When `false`, changes are buffered and only committed when the **Save** button is clicked.
+</ParamField>
+
+<ParamField path="topBar" type="boolean | object" default="true">
+  Controls the editor's top action bar. Pass `true` to show the default Close/Delete buttons (and Save when `autoSave` is `false`). Pass `false` to hide the top bar entirely. Pass a configuration object to provide custom buttons.
+
+  ```ts
+  // Custom top bar example
+  topBar={{
+    items: [
+      { comp: 'icon', icon: 'wxi-close', id: 'close' },
+      { comp: 'spacer' },
+      { comp: 'button', type: 'danger', text: 'Delete', id: 'delete' },
+    ],
+  }}
+  ```
+</ParamField>
+
+<ParamField path="bottomBar" type="boolean | object" default="true">
+  Controls the editor's bottom action bar. Pass `true` for the default bar, `false` to hide it, or a configuration object for custom buttons.
+
+  ```ts
+  // Custom bottom bar example
+  bottomBar={{
+    items: [
+      { comp: 'button', type: 'secondary', text: 'Close', id: 'close' },
+      { comp: 'spacer' },
+      { comp: 'button', type: 'danger', text: 'Delete', id: 'delete' },
+      { comp: 'button', type: 'primary', text: 'Save', id: 'save' },
+    ],
+  }}
+  ```
+</ParamField>
+
+<ParamField path="focus" type="boolean" default="false">
+  When `true`, focus is moved to the first input field when the editor opens.
+</ParamField>
+
+<ParamField path="hotkeys" type="Record<string, (ev: KeyboardEvent) => void>" default="{}">
+  Additional keyboard shortcut handlers merged with the default hotkeys. The default hotkeys include `Ctrl+Z` and `Ctrl+Y` for undo/redo when `undo` is enabled on the Gantt.
+</ParamField>
+
+<ParamField path="css" type="string" default="''">
+  Additional CSS class names appended to the editor container element.
+</ParamField>
+
+## Helper functions
+
+### `getEditorItems(options?)`
+
+Returns the default array of editor field definitions. Use this to obtain the full set and then add, remove, or modify individual fields before passing the result to the `items` prop.
+
+```ts
+function getEditorItems(options?: {
+  unscheduledTasks?: boolean;
+  summary?: object;
+  taskTypes?: ITaskType[];
+}): IEditorItem[]
+```
+
+### `defaultEditorItems`
+
+The static default editor item array. Useful as a reference for the available field keys.
+
+```ts
+import { defaultEditorItems } from '@svar-ui/react-gantt';
+```
+
+### Default field keys
+
+| Key | Component | Description |
+|---|---|---|
+| `text` | `text` | Task name |
+| `type` | `select` | Task type (task / summary / milestone) |
+| `start` | `date` | Start date |
+| `end` | `date` | End date |
+| `duration` | `counter` | Duration in days (or hours) |
+| `progress` | `slider` | Completion percentage |
+| `details` | `text` | Free-text notes field |
+| `links` | `links` | Dependency links panel |
+
+## Registering custom field components
+
+Use `registerEditorItem` to register any React component as an editor field type. Once registered, reference it by name in the `comp` field of an item definition.
+
+```ts
+function registerEditorItem(name: string, component: FC): void
+```
+
+```jsx
+import { registerEditorItem } from '@svar-ui/react-gantt';
+import { RadioButtonGroup } from '@svar-ui/react-core';
+import MyColorPicker from './MyColorPicker';
+
+// Register once — typically at module scope or in useEffect
+registerEditorItem('radio', RadioButtonGroup);
+registerEditorItem('color-picker', MyColorPicker);
+```
+
+Then reference in your items config:
+
+```jsx
+const items = [
+  ...getEditorItems(),
+  {
+    key: 'color',
+    comp: 'color-picker',
+    label: 'Task color',
+  },
+];
+
+<Editor api={api} items={items} />
+```
+
+## Configuring fields
+
+### Reordering and filtering default fields
+
+```jsx
+import { useMemo } from 'react';
+import { Editor, getEditorItems } from '@svar-ui/react-gantt';
+
+export default function App() {
+  const [api, setApi] = useState();
+
+  const items = useMemo(() => {
+    const keys = ['text', 'type', 'start', 'end', 'duration', 'progress'];
+    const defaults = getEditorItems();
+    return keys.map((key) => ({
+      ...defaults.find((d) => d.key === key),
+    }));
+  }, []);
+
+  return (
+    <>
+      <Gantt init={setApi} tasks={tasks} />
+      {api && <Editor api={api} items={items} />}
+    </>
+  );
+}
+```
+
+### Adding a custom field
+
+```jsx
+const items = useMemo(() => [
+  ...getEditorItems(),
+  {
+    key: 'assignee',
+    comp: 'select',
+    label: 'Assignee',
+    options: [
+      { id: 1, label: 'Alice' },
+      { id: 2, label: 'Bob' },
+    ],
+  },
+], []);
+```
+
+## Sidebar vs modal
+
+<CodeGroup>
+
+```jsx Sidebar (default)
+<Editor api={api} placement="sidebar" />
+```
+
+```jsx Modal
+<Editor
+  api={api}
+  placement="modal"
+  autoSave={false}
+  topBar={false}
+  bottomBar={{
+    items: [
+      { comp: 'button', type: 'secondary', text: 'Close', id: 'close' },
+      { comp: 'spacer' },
+      { comp: 'button', type: 'danger',    text: 'Delete', id: 'delete' },
+      { comp: 'button', type: 'primary',   text: 'Save',   id: 'save'  },
+    ],
+  }}
+/>
+```
+
+</CodeGroup>
+
+## Validation
+
+Add a `validation` function and optional `validationMessage` to any item definition. The function receives the current field value and must return `true` when valid.
+
+```jsx
+import { useMemo } from 'react';
+import { Editor, getEditorItems } from '@svar-ui/react-gantt';
+
+export default function App() {
+  const [api, setApi] = useState();
+
+  const items = useMemo(
+    () =>
+      getEditorItems().map((item) => ({
+        ...item,
+        // Make the task name required
+        ...(item.comp === 'text' && { required: true }),
+        // Limit duration to 50 days
+        ...(item.comp === 'counter' && {
+          validation: (v) => v <= 50,
+          validationMessage: 'Duration must not exceed 50 days',
+        }),
+      })),
+    []
+  );
+
+  return (
+    <>
+      <Gantt init={setApi} tasks={tasks} />
+      {api && <Editor api={api} items={items} autoSave={false} />}
+    </>
+  );
+}
+```
+
+<Note>
+  Validation runs on every change when `autoSave` is `true`, and on save when `autoSave` is `false`. If any field is invalid, the task is not saved.
+</Note>
+
+## Readonly editor
+
+```jsx
+<Editor api={api} readonly />
+```
+
+In readonly mode all fields render as static text, the Delete button is hidden, and no save action is dispatched.

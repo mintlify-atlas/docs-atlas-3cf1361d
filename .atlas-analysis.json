@@ -1,28 +1,11 @@
 {
-  "$schema": "https://mintlify.com/docs.json",
-  "name": "SVAR React Gantt",
+  "projectType": "sdk-library",
+  "projectName": "SVAR React Gantt",
+  "projectDescription": "A high-performance, customizable React Gantt chart component with TypeScript support, drag-and-drop editing, task dependencies, and flexible timeline configuration.",
   "theme": "mint",
-  "colors": {
-    "primary": "#6aa2f9",
-    "light": "#0f1a2c",
-    "dark": "#d0d0d1"
-  },
-  "favicon": "https://media.brand.dev/1e846964-9454-4428-a9d3-85361c8b034e.jpg",
-  "logo": {
-    "light": "https://media.brand.dev/a6fd2aaf-a07a-44a9-b482-fcacab0dea1d.svg",
-    "dark": "https://media.brand.dev/2fcb3339-2a21-4c10-90a3-1187bd3af9ab.svg"
-  },
-  "navbar": {
-    "primary": {
-      "type": "github",
-      "href": "https://github.com/svar-widgets/react-gantt"
-    }
-  },
-  "footer": {
-    "socials": {
-      "github": "https://github.com/svar-widgets/react-gantt"
-    }
-  },
+  "primaryColor": "#6aa2f9",
+  "lightColor": "#0f1a2c",
+  "darkColor": "#d0d0d1",
   "navigation": {
     "tabs": [
       {
@@ -97,5 +80,51 @@
         ]
       }
     ]
-  }
+  },
+  "keyFeatures": [
+    "Interactive drag-and-drop timeline",
+    "Task dependencies and links",
+    "Hierarchical subtasks (summary tasks)",
+    "Configurable time scales (hours, days, weeks, months)",
+    "Customizable grid columns with inline editors",
+    "Toolbar, context menu, and task editor",
+    "Tooltips for taskbars",
+    "Zoom with scroll and configurable zoom levels",
+    "Hotkey support for common actions",
+    "Multi-column sorting",
+    "Localization support",
+    "Full TypeScript support",
+    "React 19 compatibility",
+    "High performance with large datasets (10k+ tasks)",
+    "Light/dark theme support (Material, Willow, WillowDark)",
+    "PRO: Auto-scheduling, critical path, baselines, split tasks, undo/redo, export"
+  ],
+  "publicApiSurface": [
+    "Gantt",
+    "Toolbar",
+    "Editor",
+    "ContextMenu",
+    "HeaderMenu",
+    "Tooltip",
+    "Material",
+    "Willow",
+    "WillowDark",
+    "defaultColumns",
+    "defaultEditorItems",
+    "defaultToolbarButtons",
+    "defaultMenuOptions",
+    "defaultTaskTypes",
+    "getEditorItems",
+    "getToolbarButtons",
+    "getMenuOptions",
+    "registerScaleUnit",
+    "registerEditorItem",
+    "IApi",
+    "IConfig",
+    "ITask",
+    "IGanttColumn",
+    "IColumnConfig",
+    "GanttActions",
+    "version"
+  ]
 }

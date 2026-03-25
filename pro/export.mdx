@@ -1,0 +1,252 @@
+---
+title: "Export and import"
+description: "Export SVAR React Gantt PRO charts to PNG, PDF, Excel, and MS Project XML, or import data from MS Project files."
+---
+
+<Warning>
+  Export and MS Project import/export are **PRO-only** features. See [PRO features overview](/pro/overview) to get started.
+</Warning>
+
+SVAR React Gantt PRO supports both **client-side** and **server-side** export to several formats, as well as round-trip import and export with Microsoft Project XML.
+
+## Export overview
+
+| Format | How | Action |
+|---|---|---|
+| PNG | Server-side (SVAR export service) | `export-data` with `format: 'png'` |
+| PDF | Server-side (SVAR export service) | `export-data` with `format: 'pdf'` |
+| Excel (XLSX) | Server-side (SVAR export service) | `export-data` with `format: 'xlsx'` |
+| MS Project (XML) | Client-side | `export-data` with `format: 'mspx'` |
+
+<Note>
+  PNG, PDF, and Excel export are processed by the SVAR hosted export service (`https://export.svar.dev/gantt/{version}`). The component sends chart data and configuration to the service, which returns a downloadable file. No server-side code is required in your application.
+</Note>
+
+## The `export-data` action
+
+All export operations use `api.exec('export-data', options)`. The required options vary by format.
+
+### Common options
+
+| Option | Type | Description |
+|---|---|---|
+| `url` | `string` | Export service URL (required for PNG, PDF, XLSX). Use `https://export.svar.dev/gantt/{version}`. |
+| `format` | `string` | One of `'png'`, `'pdf'`, `'xlsx'`, `'mspx'`. |
+
+## Exporting to PDF or PNG
+
+Both PDF and PNG export support the same layout options:
+
+| Option | Type | Description |
+|---|---|---|
+| `pdf.size` / `png.size` | `string` | Paper size: `'auto'`, `'a4'`, `'a3'`. |
+| `pdf.landscape` / `png.landscape` | `boolean` | Landscape orientation when `true`. |
+| `pdf.fitSize` / `png.fitSize` | `boolean` | Scale the chart to fit the page. Ignored when size is `'auto'`. |
+| `pdf.styles` / `png.styles` | `string` | Additional CSS injected into the rendered output (e.g. for custom marker colours). |
+| `ganttConfig` | `object` | Override Gantt props for the export render (e.g. `{ cellWidth: 30 }` to fit more on a page). |
+
+```jsx
+import { Gantt, version } from '@svar-ui/react-gantt';
+import '@svar-ui/react-gantt/all.css';
+
+const exportUrl = `https://export.svar.dev/gantt/${version}`;
+
+function exportPDF(api) {
+  api.exec('export-data', {
+    url: exportUrl,
+    format: 'pdf',
+    pdf: {
+      size: 'a4',
+      landscape: true,
+      fitSize: true,
+      styles: '.wx-gantt .myMarker { background-color: rgba(255, 84, 84, 0.77); }',
+    },
+    ganttConfig: {
+      cellWidth: 30,
+    },
+  });
+}
+
+function exportPNG(api) {
+  api.exec('export-data', {
+    url: exportUrl,
+    format: 'png',
+    png: {
+      size: 'auto',
+    },
+  });
+}
+```
+
+## Exporting to Excel (XLSX)
+
+Excel export supports two modes:
+
+- **Data-only**: exports task and link data as flat spreadsheet tables.
+- **Visual**: exports data alongside a visual chart image embedded in the spreadsheet.
+
+| Option | Type | Description |
+|---|---|---|
+| `excel.columns` | `array \| null` | Column definitions for the task sheet. Pass `null` for all default columns. |
+| `excel.sheetNames` | `string[]` | Names for the tasks and links sheets (default: `['Tasks', 'Links']`). |
+| `excel.dateFormat` | `string` | Date format string for date cells (e.g. `'yyyy-mmm-dd'`). |
+| `excel.visual` | `boolean` | When `true`, embeds the Gantt chart image in the spreadsheet. |
+
+```jsx
+// Data-only Excel export
+function exportExcel(api) {
+  api.exec('export-data', {
+    url: exportUrl,
+    format: 'xlsx',
+    excel: {
+      sheetNames: ['Tasks', 'Links'],
+      dateFormat: 'yyyy-mmm-dd',
+      visual: false,
+    },
+  });
+}
+
+// Visual Excel export (chart image embedded)
+function exportExcelVisual(api) {
+  api.exec('export-data', {
+    url: exportUrl,
+    format: 'xlsx',
+    excel: {
+      columns: [
+        { id: 'text', header: 'Task name', width: 200 },
+      ],
+      sheetNames: ['Tasks', 'Links'],
+      dateFormat: 'yyyy-mmm-dd',
+      visual: true,
+    },
+  });
+}
+```
+
+## MS Project export
+
+MS Project XML export (`mspx` format) is **client-side** — it does not require an external service URL.
+
+```jsx
+function exportMSProject(api) {
+  api.exec('export-data', { format: 'mspx' });
+}
+```
+
+This generates and downloads a `.xml` file compatible with Microsoft Project.
+
+## MS Project import
+
+Use the `import-data` action to load an MS Project XML file into the Gantt:
+
+```jsx
+function importMSProject(api, file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    api.exec('import-data', {
+      data: e.target.result, // XML string
+    });
+  };
+  reader.readAsText(file);
+}
+```
+
+A complete import UI with a file input:
+
+```jsx
+import { useCallback, useState } from 'react';
+import { Gantt } from '@svar-ui/react-gantt';
+import '@svar-ui/react-gantt/all.css';
+
+export default function App() {
+  const [api, setApi] = useState();
+
+  const handleImport = useCallback(() => {
+    const file = document.getElementById('import-file').files[0];
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      api.exec('import-data', { data: e.target.result });
+    };
+    reader.readAsText(file);
+  }, [api]);
+
+  return (
+    <>
+      <button onClick={() => api.exec('export-data', { format: 'mspx' })}>
+        Export to MS Project XML
+      </button>
+      <input id="import-file" type="file" accept=".xml" onChange={handleImport} />
+      <Gantt
+        init={setApi}
+        tasks={tasks}
+        links={links}
+        scales={scales}
+      />
+    </>
+  );
+}
+```
+
+## The `_export` prop
+
+The `_export` prop is an internal flag used by the export service renderer. When `_export={true}`, the component skips the normal task date parsing step so that the export service can supply pre-serialized data directly.
+
+<Warning>
+  Do not set `_export={true}` in your application code. This prop is reserved for the SVAR export service and is documented here for completeness only.
+</Warning>
+
+## Full toolbar export example
+
+This example wires all export formats to a `<Toolbar>` component, mirroring the `ProExport` demo:
+
+```jsx
+import { useState, useMemo } from 'react';
+import { Gantt, Toolbar, version } from '@svar-ui/react-gantt';
+import '@svar-ui/react-gantt/all.css';
+
+const exportUrl = `https://export.svar.dev/gantt/${version}`;
+
+export default function App() {
+  const [api, setApi] = useState();
+
+  const toolbarItems = [
+    { id: 'export-pdf',         comp: 'button', text: 'To PDF' },
+    { id: 'export-png',         comp: 'button', text: 'To PNG' },
+    { id: 'export-xlsx',        comp: 'button', text: 'To XLSX' },
+    { id: 'export-xlsx-visual', comp: 'button', text: 'To XLSX with chart' },
+    { id: 'export-mspx',        comp: 'button', text: 'To MS Project XML' },
+  ];
+
+  function handleClick({ item }) {
+    switch (item.id) {
+      case 'export-pdf':
+        api.exec('export-data', { url: exportUrl, format: 'pdf', pdf: { size: 'a4', landscape: true } });
+        break;
+      case 'export-png':
+        api.exec('export-data', { url: exportUrl, format: 'png', png: { size: 'auto' } });
+        break;
+      case 'export-xlsx':
+        api.exec('export-data', { url: exportUrl, format: 'xlsx', excel: { sheetNames: ['Tasks', 'Links'], dateFormat: 'yyyy-mmm-dd', visual: false } });
+        break;
+      case 'export-xlsx-visual':
+        api.exec('export-data', { url: exportUrl, format: 'xlsx', excel: { sheetNames: ['Tasks', 'Links'], dateFormat: 'yyyy-mmm-dd', visual: true } });
+        break;
+      case 'export-mspx':
+        api.exec('export-data', { format: 'mspx' });
+        break;
+    }
+  }
+
+  return (
+    <>
+      <Toolbar items={toolbarItems} onClick={handleClick} />
+      <Gantt
+        init={setApi}
+        tasks={tasks}
+        links={links}
+        scales={scales}
+      />
+    </>
+  );
+}
+```

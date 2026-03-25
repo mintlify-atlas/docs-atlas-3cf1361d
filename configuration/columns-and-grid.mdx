@@ -1,0 +1,248 @@
+---
+title: "Columns and grid"
+description: "Configure the grid panel: default columns, custom columns, flex sizing, inline editors, header menus, and sorting."
+---
+
+The left panel of the Gantt chart is a grid of columns that shows task data. You control it with the `columns` prop.
+
+## Default columns
+
+When you omit the `columns` prop, the component uses `defaultColumns`, which you can also import and extend:
+
+```jsx
+import { Gantt, defaultColumns } from '@svar-ui/react-gantt';
+```
+
+The default column set is:
+
+| id | Header | Description |
+|---|---|---|
+| `text` | Task | Task name with expand/collapse toggle for summary tasks |
+| `start` | Start date | Formatted start date |
+| `end` | End date | Formatted end date |
+| `duration` | Duration | Duration in `durationUnit` units |
+| `progress` | Progress | Numeric progress percentage |
+| `add-task` | — | Button to add a new task at this level |
+
+## The `columns` prop
+
+Pass an array of column config objects to replace the default grid.
+
+<ParamField body="columns" type="IColumnConfig[] | false" default="defaultColumns">
+  Array of column definitions to display in the grid. Pass `false` to hide the grid entirely.
+</ParamField>
+
+### Hiding the grid
+
+```jsx
+<Gantt tasks={tasks} links={links} columns={false} />
+```
+
+## Column config fields
+
+<ParamField body="id" type="string" required>
+  Field name on the task object to read values from. Use any built-in id (`'text'`, `'start'`, `'end'`, `'duration'`, `'progress'`) or any custom field name on your task objects.
+</ParamField>
+
+<ParamField body="header" type="string | object">
+  Column heading text, or a header config object. Pass an object with a `cell` property to render a custom React component in the header cell (useful for action buttons like "Add task").
+
+  ```jsx
+  // Plain text header
+  { id: 'text', header: 'Task name' }
+
+  // Custom header component
+  { id: 'add-task', header: { cell: AddTaskCell } }
+  ```
+</ParamField>
+
+<ParamField body="width" type="number">
+  Fixed pixel width for the column. Mutually exclusive with `flexgrow`.
+</ParamField>
+
+<ParamField body="flexgrow" type="number">
+  Flex-grow factor. Columns with `flexgrow` fill the available grid width proportionally. A column with `flexgrow: 2` gets twice the space of one with `flexgrow: 1`.
+</ParamField>
+
+<ParamField body="align" type="'left' | 'center' | 'right'">
+  Horizontal alignment of cell content.
+</ParamField>
+
+<ParamField body="sort" type="boolean">
+  When `true`, clicking the column header sorts the task list by this field.
+</ParamField>
+
+<ParamField body="cell" type="FC<{ data: ITask; api: IApi }>">
+  Custom React component to render inside each data cell. Receives the full task object as `data` and the Gantt API as `api`.
+</ParamField>
+
+<ParamField body="editor" type="object">
+  Inline editor configuration. When set, clicking a cell in this column opens an in-place editor. See [inline editors](#inline-editors) below.
+</ParamField>
+
+## Sizing: fixed vs. flex columns
+
+<Tabs>
+  <Tab title="Fixed widths">
+    Every column has a fixed pixel `width`. The grid has a fixed total width.
+
+    ```jsx
+    const columns = [
+      { id: 'text',     header: 'Task name',  width: 120 },
+      { id: 'start',    header: 'Start date', width: 120, align: 'center' },
+      { id: 'duration', header: 'Duration',   width: 90,  align: 'center' },
+      { id: 'add-task', header: 'Add task',   width: 50,  align: 'center' },
+    ];
+    ```
+  </Tab>
+  <Tab title="Flex widths">
+    Use `flexgrow` to distribute available space. The grid stretches responsively.
+
+    ```jsx
+    const columns = [
+      { id: 'text',     header: 'Task name',  flexgrow: 2 },
+      { id: 'start',    header: 'Start date', flexgrow: 1, align: 'center' },
+      { id: 'duration', header: 'Duration',   flexgrow: 1, align: 'center' },
+      { id: 'add-task', header: 'Add task',   width: 50,   align: 'center' },
+    ];
+    ```
+
+    You can mix `flexgrow` and fixed `width` columns: fixed columns are laid out first, and flex columns divide the remainder.
+  </Tab>
+</Tabs>
+
+## Custom cell renderers
+
+Provide a `cell` component to render any content in a column cell.
+
+```jsx
+// A simple custom cell that shows a colored badge based on task progress
+function ProgressBadge({ data }) {
+  const color = data.progress === 100 ? 'green' : data.progress > 50 ? 'blue' : 'gray';
+  return (
+    <span style={{ background: color, color: '#fff', borderRadius: 4, padding: '2px 6px' }}>
+      {data.progress}%
+    </span>
+  );
+}
+
+const columns = [
+  { id: 'text',     header: 'Task',     width: 220 },
+  { id: 'progress', header: 'Progress', width: 100, cell: ProgressBadge },
+];
+
+<Gantt tasks={tasks} links={links} columns={columns} />
+```
+
+## Custom columns from task fields
+
+Any field present on your task objects can be used as a column `id`.
+
+```jsx
+// Tasks have a custom 'assigned' field
+const tasks = [
+  { id: 1, text: 'Design', assigned: 'Laura Turner',
+    start: new Date(2026, 3, 1), duration: 5, type: 'task', parent: 0 },
+];
+
+const columns = [
+  { id: 'text',     header: 'Task',     width: 220 },
+  { id: 'assigned', header: 'Assigned', width: 160 },
+];
+```
+
+## Inline editors
+
+The `editor` field on a column definition activates in-place editing when a user clicks a cell.
+
+```jsx
+const columns = [
+  {
+    id: 'text',
+    header: 'Task name',
+    width: 220,
+    editor: { type: 'text' },
+  },
+  {
+    id: 'start',
+    header: 'Start date',
+    width: 120,
+    editor: { type: 'date' },
+  },
+  {
+    id: 'progress',
+    header: 'Progress',
+    width: 90,
+    editor: { type: 'number' },
+  },
+];
+```
+
+<Note>
+  Built-in editor types include `'text'`, `'date'`, `'number'`, and `'combo'`. The full task editor dialog (opened from the context menu or toolbar) is a separate `<Editor>` component.
+</Note>
+
+## Sorting columns
+
+Set `sort: true` on any column to make the header clickable for sorting.
+
+```jsx
+const columns = [
+  { id: 'text',     header: 'Task name',  width: 220, sort: true },
+  { id: 'start',    header: 'Start date', width: 120, sort: true },
+  { id: 'progress', header: 'Progress',   width: 90,  sort: true },
+];
+```
+
+Clicking the header once sorts ascending; clicking again sorts descending.
+
+## HeaderMenu for toggling column visibility
+
+`HeaderMenu` is a ready-made right-click menu for column headers that lets users show and hide columns at runtime. Import it from the package and wrap `<Gantt>`.
+
+```jsx
+import { Gantt, HeaderMenu } from '@svar-ui/react-gantt';
+import { useState } from 'react';
+
+function App() {
+  const [api, setApi] = useState(null);
+
+  return (
+    <HeaderMenu api={api}>
+      <Gantt
+        init={setApi}
+        tasks={tasks}
+        links={links}
+        columns={columns}
+      />
+    </HeaderMenu>
+  );
+}
+```
+
+<Tip>
+  `HeaderMenu` reads the column list from the Gantt API and automatically builds the show/hide menu — you do not need to configure it manually.
+</Tip>
+
+## Full example
+
+```jsx
+import { Gantt, defaultColumns } from '@svar-ui/react-gantt';
+import '@svar-ui/react-gantt/all.css';
+
+function StatusCell({ data }) {
+  return <span>{data.progress === 100 ? 'Done' : 'In progress'}</span>;
+}
+
+const columns = [
+  { id: 'text',     header: 'Task',     flexgrow: 2, sort: true },
+  { id: 'start',    header: 'Start',    flexgrow: 1, align: 'center' },
+  { id: 'duration', header: 'Days',     width: 70,   align: 'center' },
+  { id: 'status',   header: 'Status',   width: 100,  cell: StatusCell },
+  { id: 'add-task', header: '',         width: 50,   align: 'center' },
+];
+
+export default function App() {
+  return <Gantt tasks={tasks} links={links} columns={columns} />;
+}
+```

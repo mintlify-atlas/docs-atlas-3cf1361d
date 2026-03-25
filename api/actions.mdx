@@ -1,0 +1,513 @@
+---
+title: Actions
+description: Actions that can be dispatched via api.exec() in the SVAR React Gantt component
+---
+
+Actions are dispatched via `api.exec(action, data)` to trigger mutations in the Gantt store. After an action is processed, the corresponding [event](/api/events) fires for any listeners registered with `api.on()`. Actions can be blocked by returning `false` from an `api.intercept()` handler.
+
+```jsx
+api.exec("update-task", {
+  id: 12,
+  task: { text: "Renamed", progress: 75 },
+});
+```
+
+---
+
+## add-task
+
+Adds a new task to the Gantt.
+
+<ParamField path="task" type="Partial<ITask>" required>
+  Properties for the new task. At minimum, `text` is recommended.
+</ParamField>
+
+<ParamField path="target" type="string | number">
+  The ID of an existing task used as the insertion reference point. If omitted, the task is appended at the root level.
+</ParamField>
+
+<ParamField path="mode" type="'child' | 'before' | 'after'">
+  How to position the new task relative to `target`. Defaults to `'child'` when called from the grid's add button.
+</ParamField>
+
+<ParamField path="show" type="boolean">
+  When `true`, the editor opens automatically after the task is inserted.
+</ParamField>
+
+```jsx
+// Add a sibling task after task #5
+api.exec("add-task", {
+  task: { text: "New task" },
+  target: 5,
+  mode: "after",
+});
+
+// Add a child task and open the editor
+api.exec("add-task", {
+  task: { text: "Sub-task" },
+  target: 3,
+  mode: "child",
+  show: true,
+});
+```
+
+---
+
+## update-task
+
+Updates properties on an existing task.
+
+<ParamField path="id" type="string | number" required>
+  The ID of the task to update.
+</ParamField>
+
+<ParamField path="task" type="Partial<ITask>" required>
+  An object containing only the fields to update. Merged with the existing task.
+</ParamField>
+
+<ParamField path="diff" type="number">
+  A number of time units to shift `start`/`end` dates. Used internally by drag-and-drop; you can also set it directly for programmatic shifting.
+</ParamField>
+
+<ParamField path="inProgress" type="boolean">
+  Pass `true` during live drag previews to signal that the update is not yet final (suppresses some side-effects). Pass `false` to mark the final update.
+</ParamField>
+
+```jsx
+// Update task text and progress
+api.exec("update-task", {
+  id: 10,
+  task: { text: "Updated name", progress: 80 },
+});
+
+// Convert a task to a summary task
+api.exec("update-task", {
+  id: 10,
+  task: { type: "summary" },
+});
+
+// Recalculate summary progress after children change
+const progress = getSummaryProgress(summaryId);
+api.exec("update-task", {
+  id: summaryId,
+  task: { progress },
+});
+```
+
+---
+
+## delete-task
+
+Deletes a task and all of its descendants.
+
+<ParamField path="id" type="string | number" required>
+  The ID of the task to delete.
+</ParamField>
+
+```jsx
+api.exec("delete-task", { id: 12 });
+
+// Delete all selected tasks in correct order
+const selected = api.getState().selected;
+const tasks = selected
+  .map((id) => api.getTask(id))
+  .sort((a, b) => b.$y - a.$y); // bottom-up to avoid index shifts
+tasks.forEach(({ id }) => api.exec("delete-task", { id }));
+```
+
+---
+
+## move-task
+
+Moves a task to a new position in the task tree (reordering), or programmatically repositions it relative to another task.
+
+<ParamField path="id" type="string | number" required>
+  The ID of the task to move.
+</ParamField>
+
+<ParamField path="mode" type="'before' | 'after' | 'child' | 'up' | 'down'" required>
+  The direction or relationship for the move.
+</ParamField>
+
+<ParamField path="target" type="string | number">
+  The ID of the reference task. Required when `mode` is `'before'`, `'after'`, or `'child'`.
+</ParamField>
+
+<ParamField path="inProgress" type="boolean">
+  Set to `true` during live drag preview updates. Set to `false` (or omit) for the final commit.
+</ParamField>
+
+```jsx
+// Move task one position up
+api.exec("move-task", { id: 5, mode: "up" });
+
+// Move task one position down
+api.exec("move-task", { id: 5, mode: "down" });
+
+// Move task before another task
+api.exec("move-task", { id: 5, mode: "before", target: 8 });
+
+// Move task as a child of another
+api.exec("move-task", { id: 5, mode: "child", target: 3 });
+```
+
+---
+
+## select-task
+
+Changes the current task selection.
+
+<ParamField path="id" type="string | number" required>
+  The ID of the task to select.
+</ParamField>
+
+<ParamField path="toggle" type="boolean">
+  When `true`, adds or removes the task from a multi-selection (Ctrl/Cmd behaviour).
+</ParamField>
+
+<ParamField path="range" type="boolean">
+  When `true`, extends the selection from the current anchor to this task (Shift behaviour).
+</ParamField>
+
+<ParamField path="show" type="boolean">
+  When `true`, scrolls the chart so the selected task bar is visible.
+</ParamField>
+
+```jsx
+// Select a single task and scroll to it
+api.exec("select-task", { id: 5, show: true });
+
+// Add to existing selection
+api.exec("select-task", { id: 6, toggle: true });
+```
+
+---
+
+## sort-tasks
+
+Sorts the task list by the specified column.
+
+<ParamField path="key" type="string" required>
+  The column key to sort by (e.g. `"text"`, `"start"`, `"duration"`).
+</ParamField>
+
+<ParamField path="order" type="'asc' | 'desc'" required>
+  The sort direction.
+</ParamField>
+
+<ParamField path="add" type="boolean">
+  When `true`, appends this sort criterion to a multi-column sort instead of replacing the current sort.
+</ParamField>
+
+```jsx
+// Sort by task name ascending
+api.exec("sort-tasks", { key: "text", order: "asc" });
+
+// Sort by start date descending
+api.exec("sort-tasks", { key: "start", order: "desc" });
+
+// Restrict sorting to the text column only
+api.intercept("sort-tasks", ({ key }) => key === "text");
+```
+
+---
+
+## show-editor
+
+Opens or closes the task editor panel.
+
+<ParamField path="id" type="string | number | null" required>
+  The ID of the task to edit. Pass `null` to close the editor.
+</ParamField>
+
+```jsx
+// Open editor for a specific task
+api.exec("show-editor", { id: 5 });
+
+// Close the editor
+api.exec("show-editor", { id: null });
+
+// Automatically open the editor when a new task is added
+api.on("add-task", ({ id }) => {
+  api.exec("show-editor", { id });
+});
+```
+
+---
+
+## open-task
+
+Expands or collapses a summary task node in the grid.
+
+<ParamField path="id" type="string | number" required>
+  The ID of the summary task to toggle.
+</ParamField>
+
+<ParamField path="mode" type="boolean" required>
+  `true` to expand the node, `false` to collapse it.
+</ParamField>
+
+```jsx
+// Expand a summary task
+api.exec("open-task", { id: 3, mode: true });
+
+// Collapse a summary task
+api.exec("open-task", { id: 3, mode: false });
+```
+
+---
+
+## drag-task
+
+Dispatched internally during task bar drag operations on the chart. Can be intercepted to restrict dragging.
+
+<ParamField path="id" type="string | number" required>
+  The ID of the task being dragged.
+</ParamField>
+
+<ParamField path="left" type="number">
+  Current pixel left offset of the task bar.
+</ParamField>
+
+<ParamField path="width" type="number">
+  Current pixel width of the task bar.
+</ParamField>
+
+<ParamField path="top" type="number">
+  Present when the task is being reordered vertically. Undefined during horizontal move/resize.
+</ParamField>
+
+<ParamField path="inProgress" type="boolean">
+  `true` while dragging; `false` on drop.
+</ParamField>
+
+```jsx
+// Block horizontal drag but allow vertical reordering
+api.intercept("drag-task", (ev) => {
+  // ev.top is defined only for vertical reorder
+  if (typeof ev.top !== "undefined") return true; // allow reorder
+  return allowDrag; // allow/block horizontal drag
+});
+```
+
+---
+
+## add-link
+
+Adds a new dependency link between two tasks.
+
+<ParamField path="link" type="object" required>
+  <Expandable title="link fields">
+    <ParamField path="source" type="string | number" required>
+      ID of the predecessor (source) task.
+    </ParamField>
+    <ParamField path="target" type="string | number" required>
+      ID of the successor (target) task.
+    </ParamField>
+    <ParamField path="type" type="string" required>
+      Link type: `"e2s"` (end-to-start), `"s2s"` (start-to-start), `"e2e"` (end-to-end), or `"s2e"` (start-to-end).
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+```jsx
+api.exec("add-link", {
+  link: {
+    source: 10,
+    target: 11,
+    type: "e2s",
+  },
+});
+```
+
+---
+
+## update-link
+
+Updates properties on an existing dependency link.
+
+<ParamField path="id" type="string | number" required>
+  The ID of the link to update.
+</ParamField>
+
+<ParamField path="link" type="object" required>
+  The fields to update on the link.
+</ParamField>
+
+```jsx
+api.exec("update-link", {
+  id: 3,
+  link: { type: "s2s" },
+});
+```
+
+---
+
+## delete-link
+
+Deletes a dependency link.
+
+<ParamField path="id" type="string | number" required>
+  The ID of the link to delete.
+</ParamField>
+
+```jsx
+api.exec("delete-link", { id: 3 });
+```
+
+---
+
+## zoom-scale
+
+Changes the zoom level of the chart. Dispatched internally on Ctrl+scroll, but can also be called programmatically.
+
+<ParamField path="dir" type="number" required>
+  Zoom direction: positive values zoom in, negative values zoom out.
+</ParamField>
+
+<ParamField path="offset" type="number">
+  Horizontal pixel offset for the zoom anchor point (keeps the view centered on that position).
+</ParamField>
+
+```jsx
+// Zoom in
+api.exec("zoom-scale", { dir: 1 });
+
+// Zoom out
+api.exec("zoom-scale", { dir: -1 });
+```
+
+---
+
+## provide-data
+
+Delivers lazily loaded child data in response to a [`request-data`](/api/events#request-data) event.
+
+<ParamField path="id" type="string | number" required>
+  The ID of the parent task that triggered the `request-data` event.
+</ParamField>
+
+<ParamField path="data" type="object" required>
+  <Expandable title="data fields">
+    <ParamField path="tasks" type="ITask[]" required>
+      The child tasks to load under the parent.
+    </ParamField>
+    <ParamField path="links" type="object[]">
+      Any dependency links associated with the loaded tasks.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+```jsx
+api.on("request-data", (ev) => {
+  fetch(`/api/tasks/${ev.id}`)
+    .then((res) => res.json())
+    .then((data) => {
+      api.exec("provide-data", {
+        id: ev.id,
+        data: {
+          tasks: data.tasks,
+          links: data.links,
+        },
+      });
+    });
+});
+```
+
+---
+
+## export-data
+
+Exports the Gantt chart to a file. Requires a connection to the SVAR export service.
+
+<ParamField path="url" type="string" required>
+  The URL of the export service endpoint.
+</ParamField>
+
+<ParamField path="format" type="'pdf' | 'png' | 'xlsx' | 'mspx'" required>
+  The output format.
+</ParamField>
+
+<ParamField path="pdf" type="object">
+  PDF-specific options (size, landscape, fitSize, styles).
+</ParamField>
+
+<ParamField path="png" type="object">
+  PNG-specific options (size, landscape, fitSize, styles).
+</ParamField>
+
+<ParamField path="excel" type="object">
+  Excel-specific options (columns, sheetNames, dateFormat, visual chart).
+</ParamField>
+
+<ParamField path="ganttConfig" type="object">
+  Gantt configuration overrides applied only during export (e.g. `{ cellWidth: 30 }`).
+</ParamField>
+
+```jsx
+const exportUrl = "https://export.svar.dev/gantt/" + version;
+
+// Export to PDF
+api.exec("export-data", {
+  url: exportUrl,
+  format: "pdf",
+  pdf: { size: "a4", landscape: true, fitSize: true },
+});
+
+// Export to XLSX with a chart sheet
+api.exec("export-data", {
+  url: exportUrl,
+  format: "xlsx",
+  excel: {
+    columns: [{ id: "text", header: "Task name", width: 200 }],
+    sheetNames: ["Tasks", "Links"],
+    dateFormat: "yyyy-mmm-dd",
+    visual: true,
+  },
+});
+
+// Export to MS Project XML
+api.exec("export-data", { format: "mspx" });
+```
+
+---
+
+## import-data
+
+Imports task data from an external format (e.g. MS Project XML).
+
+<ParamField path="data" type="string" required>
+  The raw data string to import (e.g. XML content read from a file).
+</ParamField>
+
+```jsx
+const reader = new FileReader();
+reader.onload = (e) => {
+  api.exec("import-data", { data: e.target.result });
+};
+reader.readAsText(file);
+```
+
+---
+
+## undo
+
+Reverts the last change. Requires the `undo` prop on the `<Gantt>` component.
+
+```jsx
+<Gantt undo tasks={tasks} links={links} scales={scales} init={init} />
+```
+
+```jsx
+api.exec("undo");
+```
+
+---
+
+## redo
+
+Re-applies the last reverted change. Requires the `undo` prop on the `<Gantt>` component.
+
+```jsx
+api.exec("redo");
+```

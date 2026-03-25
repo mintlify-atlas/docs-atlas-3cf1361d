@@ -1,0 +1,245 @@
+---
+title: "Tasks and links"
+description: "Define the task data model, task types, hierarchy, and dependency links for your Gantt chart."
+---
+
+The two core data props on `<Gantt>` are `tasks` and `links`. Together they describe the work items that appear on the chart and the dependency arrows drawn between them.
+
+## The task object
+
+Each item in the `tasks` array must conform to the `ITask` interface.
+
+<ParamField body="id" type="number | string" required>
+  Unique identifier for the task. Used by links (`source` / `target`) and the `parent` field to reference this task.
+</ParamField>
+
+<ParamField body="text" type="string">
+  Display label shown on the task bar and in the grid.
+</ParamField>
+
+<ParamField body="start" type="Date">
+  Start date of the task. Required for `'task'` and `'milestone'` types. For `'summary'` tasks you can omit this — the component derives it from children.
+</ParamField>
+
+<ParamField body="end" type="Date">
+  End date of the task. You may supply either `end` or `duration` — the component calculates the missing value. Milestones ignore `end`.
+</ParamField>
+
+<ParamField body="duration" type="number">
+  Task length expressed in [`durationUnit`](/configuration/scales-and-timeline#durationunit) units (default: days). Provide either `duration` or `end`; if both are given `end` takes precedence.
+</ParamField>
+
+<ParamField body="progress" type="number" default="0">
+  Completion percentage from `0` to `100`. Shown as a filled overlay on the task bar.
+</ParamField>
+
+<ParamField body="type" type="string" default="'task'">
+  Task type. Built-in values are `'task'`, `'milestone'`, and `'summary'`. Custom types can be added via the [`taskTypes`](#custom-task-types) prop.
+</ParamField>
+
+<ParamField body="parent" type="number | string" default="0">
+  `id` of the parent task. Use `0` (or omit) for root-level tasks. Setting a parent makes this task a child of a `'summary'` task.
+</ParamField>
+
+<ParamField body="open" type="boolean" default="false">
+  Whether a summary task's children are initially expanded.
+</ParamField>
+
+<ParamField body="lazy" type="boolean">
+  When `true`, the summary task will not expand until the user clicks it. Useful for loading children on demand.
+</ParamField>
+
+## Task types
+
+The `type` field controls how a task is rendered.
+
+| Type | Description |
+|---|---|
+| `'task'` | Standard bar task. Default type. |
+| `'milestone'` | Diamond-shaped point-in-time marker. Only `start` is used. |
+| `'summary'` | Parent container. Dates roll up from children if not supplied. |
+
+### Custom task types
+
+You can define additional types and pass them to the `taskTypes` prop. Custom types inherit the default bar rendering but get a distinct CSS class that you can style.
+
+```jsx
+const taskTypes = [
+  { id: 'task',      label: 'Task' },
+  { id: 'summary',   label: 'Summary task' },
+  { id: 'milestone', label: 'Milestone' },
+  { id: 'urgent',    label: 'Urgent' },
+  { id: 'narrow',    label: 'Narrow' },
+];
+
+<Gantt tasks={tasks} links={links} taskTypes={taskTypes} />
+```
+
+<Tip>
+  Custom type ids are added as a CSS class on the task bar element, so you can target them with `.wx-task-bar.urgent { background: red; }`.
+</Tip>
+
+## Task hierarchy
+
+Nest tasks by setting `parent` to the `id` of a `'summary'` task. You can build trees to any depth.
+
+```jsx
+const tasks = [
+  { id: 1, text: 'Website redesign', type: 'summary', parent: 0, open: true },
+  { id: 2, text: 'Discovery',        type: 'task',    parent: 1,
+    start: new Date(2026, 3, 1), duration: 3, progress: 100 },
+  { id: 3, text: 'Design',           type: 'task',    parent: 1,
+    start: new Date(2026, 3, 4), duration: 5, progress: 60 },
+  { id: 4, text: 'Launch',           type: 'milestone', parent: 1,
+    start: new Date(2026, 3, 9), progress: 0 },
+];
+```
+
+- The `open: true` field on the summary task controls whether children are visible on initial render.
+- A summary task with no explicit `start` / `end` derives its date range from the earliest child `start` and latest child `end`.
+
+## Dates and duration
+
+You can specify a task's time span in three equivalent ways:
+
+<Tabs>
+  <Tab title="start + end">
+    ```jsx
+    { id: 1, start: new Date(2026, 3, 1), end: new Date(2026, 3, 6), text: 'Task A', type: 'task' }
+    ```
+  </Tab>
+  <Tab title="start + duration">
+    ```jsx
+    // duration is in durationUnit (default: 'day')
+    { id: 1, start: new Date(2026, 3, 1), duration: 5, text: 'Task A', type: 'task' }
+    ```
+  </Tab>
+  <Tab title="end + duration">
+    ```jsx
+    // start is back-calculated from end − duration
+    { id: 1, end: new Date(2026, 3, 6), duration: 5, text: 'Task A', type: 'task' }
+    ```
+  </Tab>
+</Tabs>
+
+The `durationUnit` prop (default `'day'`) tells the component what unit to use when interpreting the `duration` number. Set it to `'hour'` for hour-granularity schedules.
+
+```jsx
+<Gantt
+  tasks={tasks}
+  links={links}
+  durationUnit="hour"
+/>
+```
+
+<Note>
+  Changing `durationUnit` affects how numeric `duration` values are interpreted **and** how the duration column is displayed in the grid.
+</Note>
+
+## Dependency links
+
+Pass an array of link objects to the `links` prop to draw dependency arrows between tasks.
+
+<ParamField body="id" type="number | string" required>
+  Unique identifier for the link.
+</ParamField>
+
+<ParamField body="source" type="number | string" required>
+  `id` of the predecessor task.
+</ParamField>
+
+<ParamField body="target" type="number | string" required>
+  `id` of the successor task.
+</ParamField>
+
+<ParamField body="type" type="string" default="'e2s'">
+  Link type controlling which ends of the task bars are connected.
+
+  | Value | Meaning |
+  |---|---|
+  | `'e2s'` | End-to-start (finish-to-start) |
+  | `'s2s'` | Start-to-start |
+  | `'e2e'` | End-to-end (finish-to-finish) |
+  | `'s2e'` | Start-to-end |
+</ParamField>
+
+## Full example
+
+The example below shows a small project with all three built-in task types and several `e2s` dependency links.
+
+```jsx
+import { Gantt } from '@svar-ui/react-gantt';
+import '@svar-ui/react-gantt/all.css';
+
+const tasks = [
+  {
+    id: 1,
+    text: 'Project planning',
+    progress: 40,
+    parent: 0,
+    type: 'summary',
+    open: true,
+  },
+  {
+    id: 10,
+    start: new Date(2026, 3, 2),
+    duration: 3,
+    text: 'Marketing analysis',
+    progress: 100,
+    parent: 1,
+    type: 'task',
+  },
+  {
+    id: 11,
+    start: new Date(2026, 3, 5),
+    duration: 2,
+    text: 'Discussions',
+    progress: 72,
+    parent: 1,
+    type: 'task',
+  },
+  {
+    id: 12,
+    start: new Date(2026, 3, 8),
+    text: 'Approval of strategy',
+    progress: 100,
+    parent: 1,
+    type: 'milestone',
+  },
+  {
+    id: 2,
+    start: new Date(2026, 4, 3),
+    text: 'Release 1.0.0',
+    progress: 0,
+    parent: 0,
+    type: 'milestone',
+  },
+];
+
+const links = [
+  { id: 1, source: 10, target: 11, type: 'e2s' },
+  { id: 2, source: 11, target: 12, type: 'e2s' },
+];
+
+export default function App() {
+  return <Gantt tasks={tasks} links={links} />;
+}
+```
+
+## Props reference
+
+<ParamField body="tasks" type="ITask[]" default="[]">
+  Array of task objects to display. Mutating this array reference triggers a re-render.
+</ParamField>
+
+<ParamField body="links" type="ILink[]" default="[]">
+  Array of dependency link objects. Links are drawn as arrows between task bars on the timeline.
+</ParamField>
+
+<ParamField body="taskTypes" type="ITaskType[]">
+  Custom task type definitions. Replaces the default list (`task`, `summary`, `milestone`), so include the built-in types if you still want them.
+</ParamField>
+
+<ParamField body="durationUnit" type="'minute' | 'hour' | 'day' | 'week' | 'month'" default="'day'">
+  Unit used to interpret numeric `duration` values on task objects.
+</ParamField>

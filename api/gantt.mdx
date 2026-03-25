@@ -1,0 +1,476 @@
+---
+title: "<Gantt>"
+description: "Props, event callbacks, and ref API for the core Gantt chart component."
+---
+
+The `<Gantt>` component renders the full Gantt chart — timeline, grid, task bars, and dependency links. All other SVAR components (`Toolbar`, `Editor`, `ContextMenu`, `Tooltip`) connect to it through the `IApi` instance exposed via the `init` prop or a `ref`.
+
+## Import
+
+```jsx
+import { Gantt } from '@svar-ui/react-gantt';
+import '@svar-ui/react-gantt/all.css';
+```
+
+## Basic usage
+
+```jsx
+import { Gantt } from '@svar-ui/react-gantt';
+import '@svar-ui/react-gantt/all.css';
+
+const tasks = [
+  {
+    id: 1,
+    text: 'Project planning',
+    start: new Date(2024, 5, 1),
+    duration: 5,
+    progress: 40,
+    type: 'task',
+    parent: 0,
+  },
+];
+
+const scales = [
+  { unit: 'month', step: 1, format: '%F %Y' },
+  { unit: 'day',   step: 1, format: '%j' },
+];
+
+export default function App() {
+  return <Gantt tasks={tasks} scales={scales} />;
+}
+```
+
+## Props
+
+### Data
+
+<ParamField path="tasks" type="ITask[]" default="[]">
+  Array of task objects to render. Each task requires at minimum an `id`, `type`, and either `start`+`duration` or `start`+`end`.
+
+  ```ts
+  interface ITask {
+    id: number | string;
+    text?: string;
+    start?: Date;
+    end?: Date;
+    duration?: number;
+    progress?: number;
+    type: 'task' | 'summary' | 'milestone';
+    parent?: number | string;
+    open?: boolean;
+    lazy?: boolean;
+    [key: string]: any;
+  }
+  ```
+</ParamField>
+
+<ParamField path="links" type="ILink[]" default="[]">
+  Array of dependency link objects connecting tasks.
+
+  ```ts
+  interface ILink {
+    id: number | string;
+    source: number | string;
+    target: number | string;
+    type: 'e2s' | 's2s' | 'e2e' | 's2e';
+  }
+  ```
+
+  Link type values: `'e2s'` (end-to-start), `'s2s'` (start-to-start), `'e2e'` (end-to-end), `'s2e'` (start-to-end).
+</ParamField>
+
+<ParamField path="selected" type="(number | string)[]" default="[]">
+  Array of task IDs that are selected. Use for controlled selection.
+</ParamField>
+
+<ParamField path="activeTask" type="number | string | null" default="null">
+  ID of the task whose editor is currently open. Use for controlled editor state.
+</ParamField>
+
+### Timeline
+
+<ParamField path="scales" type="IScaleConfig[]">
+  Time scale rows displayed in the timeline header. Defaults to a two-row month/day scale.
+
+  ```ts
+  interface IScaleConfig {
+    unit: 'minute' | 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year';
+    step: number;
+    format: string; // strftime-style format string
+  }
+  ```
+
+  Default value:
+  ```js
+  [
+    { unit: 'month', step: 1, format: '%F %Y' },
+    { unit: 'day',   step: 1, format: '%j' },
+  ]
+  ```
+</ParamField>
+
+<ParamField path="start" type="Date | null" default="null">
+  Explicit start of the visible timeline range. When `null` and `autoScale` is `true`, the range is derived from task dates.
+</ParamField>
+
+<ParamField path="end" type="Date | null" default="null">
+  Explicit end of the visible timeline range. When `null` and `autoScale` is `true`, the range is derived from task dates.
+</ParamField>
+
+<ParamField path="lengthUnit" type="'day' | 'hour'" default="'day'">
+  The unit used to measure the timeline length — either `'day'` or `'hour'`.
+</ParamField>
+
+<ParamField path="durationUnit" type="'day' | 'hour'" default="'day'">
+  The unit used to interpret the `duration` field on each task.
+</ParamField>
+
+<ParamField path="cellWidth" type="number" default="100">
+  Width in pixels of each timeline cell (one `lengthUnit`).
+</ParamField>
+
+<ParamField path="cellHeight" type="number" default="38">
+  Height in pixels of each task row.
+</ParamField>
+
+<ParamField path="scaleHeight" type="number" default="36">
+  Height in pixels of each scale header row.
+</ParamField>
+
+<ParamField path="autoScale" type="boolean" default="true">
+  When `true`, the timeline start and end dates are automatically derived from the task data if `start` and `end` are not provided.
+</ParamField>
+
+<ParamField path="zoom" type="boolean | IZoomConfig" default="false">
+  Enables mouse-wheel zoom on the timeline. Pass `true` to use default zoom levels, or an `IZoomConfig` object to configure custom levels.
+
+  ```ts
+  interface IZoomConfig {
+    levels: IZoomLevel[];
+  }
+  interface IZoomLevel {
+    minCellWidth?: number;
+    maxCellWidth?: number;
+    scales: IScaleConfig[];
+  }
+  ```
+</ParamField>
+
+<ParamField path="markers" type="IMarker[]" default="[]">
+  Array of vertical marker objects drawn on the timeline. PRO feature.
+
+  ```ts
+  interface IMarker {
+    id?: number | string;
+    start: Date;
+    end?: Date;
+    css?: string;
+    text?: string;
+  }
+  ```
+</ParamField>
+
+### Grid
+
+<ParamField path="columns" type="false | IColumnConfig[]">
+  Grid column definitions. Pass `false` to hide the grid entirely. Defaults to the built-in `defaultColumns` (task name + add button).
+
+  ```ts
+  interface IColumnConfig {
+    id: string;
+    header?: string | { text: string; [key: string]: any };
+    width?: number;
+    flexGrow?: number;
+    align?: 'left' | 'center' | 'right';
+    cell?: FC<{ data: ITask; [key: string]: any }>;
+    editor?: { comp: string; config?: object };
+  }
+  ```
+</ParamField>
+
+### Task types
+
+<ParamField path="taskTypes" type="ITaskType[]">
+  Definitions for the available task types (`task`, `summary`, `milestone`). Defaults to `defaultTaskTypes`.
+
+  ```ts
+  interface ITaskType {
+    id: string;
+    label: string;
+  }
+  ```
+</ParamField>
+
+### Display
+
+<ParamField path="cellBorders" type="'column' | 'full'" default="'full'">
+  Controls the grid lines drawn in the timeline. `'column'` draws only vertical column borders; `'full'` draws both horizontal and vertical borders.
+</ParamField>
+
+<ParamField path="taskTemplate" type="FC<{ data: ITask; api: IApi; onaction: (ev: { action: string; data: Record<string, any> }) => void }>">
+  Custom React component rendered inside each task bar. Receives the task data, the `IApi` instance, and an `onaction` callback for dispatching custom actions.
+</ParamField>
+
+<ParamField path="highlightTime" type="(date: Date, unit: 'day' | 'hour') => string">
+  Function called for each cell in the timeline. Return a CSS class string to apply custom background styling (for example to highlight weekends). When a `calendar` prop is set, this is overridden by calendar-based highlighting.
+</ParamField>
+
+### Editing
+
+<ParamField path="readonly" type="boolean" default="false">
+  When `true`, disables all user interaction — drag-and-drop, inline editing, and dependency drawing.
+</ParamField>
+
+<ParamField path="undo" type="boolean" default="false">
+  Enables undo/redo history. PRO feature.
+</ParamField>
+
+### PRO features
+
+<ParamField path="baselines" type="boolean" default="false">
+  Enables baseline bars drawn below each task bar, showing the originally planned dates. PRO feature.
+</ParamField>
+
+<ParamField path="unscheduledTasks" type="boolean" default="false">
+  When `true`, tasks without a start date are shown as unscheduled in a dedicated row. PRO feature.
+</ParamField>
+
+<ParamField path="criticalPath" type="object | null" default="null">
+  Critical path configuration object. When set, tasks on the critical path are highlighted. PRO feature.
+</ParamField>
+
+<ParamField path="schedule" type="{ type?: 'forward'; auto?: boolean }" default="{ type: 'forward' }">
+  Auto-scheduling mode. `{ type: 'forward' }` enables basic forward scheduling. `{ auto: true }` enables full auto-scheduling where all task dates are recalculated from dependencies. PRO feature.
+</ParamField>
+
+<ParamField path="projectStart" type="Date | null" default="null">
+  Project start date used by the auto-scheduler. PRO feature.
+</ParamField>
+
+<ParamField path="projectEnd" type="Date | null" default="null">
+  Project end date used by the auto-scheduler. PRO feature.
+</ParamField>
+
+<ParamField path="calendar" type="object | null" default="null">
+  Work calendar instance (created via the PRO calendar API) that defines working days and hours. When set, overrides `highlightTime`. PRO feature.
+</ParamField>
+
+<ParamField path="splitTasks" type="boolean" default="false">
+  Enables split-task segments so a single task can have non-contiguous date ranges. PRO feature.
+</ParamField>
+
+<ParamField path="summary" type="object | null" default="null">
+  Summary task automation configuration. PRO feature.
+</ParamField>
+
+### Lifecycle
+
+<ParamField path="init" type="(api: IApi) => void">
+  Callback invoked once after the component mounts with the `IApi` instance. This is the primary way to access the API and wire up companion components.
+
+  ```jsx
+  const [api, setApi] = useState();
+
+  <Gantt init={setApi} tasks={tasks} />
+  ```
+</ParamField>
+
+## Event callbacks
+
+Gantt actions are surfaced as `on`-prefixed callback props derived from the internal `TMethodsConfig` action map. Each callback receives the action payload as its argument.
+
+<ParamField path="onSelectTask" type="(ev: { id: number | string }) => void">
+  Fires when a task is selected.
+</ParamField>
+
+<ParamField path="onUpdateTask" type="(ev: { id: number | string; task: Partial<ITask>; inProgress?: boolean }) => void">
+  Fires when a task's data is updated (move, resize, inline edit, or editor save).
+</ParamField>
+
+<ParamField path="onAddTask" type="(ev: { task: Partial<ITask>; target?: number | string; mode?: 'before' | 'after' | 'child' }) => void">
+  Fires when a new task is added.
+</ParamField>
+
+<ParamField path="onDeleteTask" type="(ev: { id: number | string }) => void">
+  Fires when a task is deleted.
+</ParamField>
+
+<ParamField path="onMoveTask" type="(ev: { id: number | string; mode: 'up' | 'down' | string }) => void">
+  Fires when a task is moved in the tree order.
+</ParamField>
+
+<ParamField path="onCopyTask" type="(ev: { id: number | string }) => void">
+  Fires when a task is copied.
+</ParamField>
+
+<ParamField path="onCutTask" type="(ev: { id: number | string }) => void">
+  Fires when a task is cut.
+</ParamField>
+
+<ParamField path="onPasteTask" type="(ev: { id?: number | string }) => void">
+  Fires when a task is pasted.
+</ParamField>
+
+<ParamField path="onIndentTask" type="(ev: { id: number | string }) => void">
+  Fires when a task is indented (nested under the task above).
+</ParamField>
+
+<ParamField path="onUnindentTask" type="(ev: { id: number | string }) => void">
+  Fires when a task is unindented (moved up one level in the tree).
+</ParamField>
+
+<ParamField path="onAddLink" type="(ev: { link: ILink }) => void">
+  Fires when a dependency link is created.
+</ParamField>
+
+<ParamField path="onDeleteLink" type="(ev: { id: number | string }) => void">
+  Fires when a dependency link is deleted.
+</ParamField>
+
+<ParamField path="onShowEditor" type="(ev: { id: number | string | null }) => void">
+  Fires when the task editor is opened or closed (`id` is `null` on close).
+</ParamField>
+
+<ParamField path="onScrollChart" type="(ev: { left: number; top: number }) => void">
+  Fires when the timeline is scrolled.
+</ParamField>
+
+<ParamField path="onUndo" type="(ev?: any) => void">
+  Fires when an undo action is performed. PRO feature.
+</ParamField>
+
+<ParamField path="onRedo" type="(ev?: any) => void">
+  Fires when a redo action is performed. PRO feature.
+</ParamField>
+
+## Ref API
+
+You can attach a `ref` to `<Gantt>` to access the `IApi` object imperatively. The ref exposes the same object as the `init` callback.
+
+```jsx
+import { useRef } from 'react';
+import { Gantt } from '@svar-ui/react-gantt';
+
+export default function App() {
+  const ganttRef = useRef(null);
+
+  function addTask() {
+    ganttRef.current?.exec('add-task', {
+      task: { text: 'New task', type: 'task' },
+    });
+  }
+
+  return (
+    <>
+      <button onClick={addTask}>Add task</button>
+      <Gantt ref={ganttRef} tasks={[]} />
+    </>
+  );
+}
+```
+
+### IApi methods
+
+<ResponseField name="exec" type="(action: string, data: object) => void">
+  Dispatches a named action to the Gantt store. Common actions: `'add-task'`, `'update-task'`, `'delete-task'`, `'select-task'`, `'show-editor'`, `'move-task'`, `'undo'`, `'redo'`.
+</ResponseField>
+
+<ResponseField name="on" type="(event: string, handler: (payload: any) => void) => void">
+  Subscribes to a named action event. The handler is called after the action completes.
+</ResponseField>
+
+<ResponseField name="intercept" type="(event: string, handler: (payload: any) => boolean | void) => void">
+  Subscribes to an action before it is processed. Return `false` from the handler to cancel the action.
+</ResponseField>
+
+<ResponseField name="detach" type="(handler: Function) => void">
+  Removes an event or intercept subscription.
+</ResponseField>
+
+<ResponseField name="getState" type="() => IConfig">
+  Returns a snapshot of the current Gantt state (tasks, links, scales, etc.).
+</ResponseField>
+
+<ResponseField name="getReactiveState" type="() => Record<string, any>">
+  Returns the reactive (observable) state object.
+</ResponseField>
+
+<ResponseField name="getTask" type="(id: number | string) => ITask | null">
+  Returns a single task by ID, or `null` if not found.
+</ResponseField>
+
+<ResponseField name="serialize" type="() => { tasks: ITask[]; links: ILink[] }">
+  Returns a plain serialisable snapshot of all tasks and links.
+</ResponseField>
+
+<ResponseField name="getHistory" type="() => object">
+  Returns the current undo/redo history state. PRO feature.
+</ResponseField>
+
+<ResponseField name="getTable" type="(waitRender?: boolean) => Promise<object> | object">
+  Returns the internal grid table API. Pass `true` to wait one tick for the DOM to finish rendering.
+</ResponseField>
+
+<ResponseField name="getStores" type="() => { data: DataStore }">
+  Returns the internal data store(s) for low-level access.
+</ResponseField>
+
+<ResponseField name="setNext" type="(bus: EventBus) => EventBus">
+  Chains an additional event bus at the end of the action pipeline.
+</ResponseField>
+
+## Usage with Toolbar and Editor
+
+```jsx
+import { useState } from 'react';
+import { Gantt, Toolbar, Editor } from '@svar-ui/react-gantt';
+import '@svar-ui/react-gantt/all.css';
+
+export default function App() {
+  const [api, setApi] = useState();
+
+  return (
+    <>
+      <Toolbar api={api} />
+      <div style={{ display: 'flex', flex: 1 }}>
+        <Gantt
+          init={setApi}
+          tasks={tasks}
+          links={links}
+          scales={scales}
+        />
+        {api && <Editor api={api} />}
+      </div>
+    </>
+  );
+}
+```
+
+## Handling events
+
+```jsx
+<Gantt
+  tasks={tasks}
+  onSelectTask={({ id }) => console.log('selected', id)}
+  onUpdateTask={({ id, task }) => {
+    // persist changes to your backend
+    saveTask(id, task);
+  }}
+  onAddTask={({ task }) => {
+    // generate a real ID and push to server
+    saveNewTask(task);
+  }}
+/>
+```
+
+Alternatively, use `api.on()` inside the `init` callback:
+
+```jsx
+<Gantt
+  init={(api) => {
+    api.on('update-task', ({ id, task }) => saveTask(id, task));
+    api.on('add-task',    ({ id }) => api.exec('show-editor', { id }));
+  }}
+  tasks={tasks}
+/>
+```

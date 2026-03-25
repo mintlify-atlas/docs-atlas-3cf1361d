@@ -1,0 +1,255 @@
+---
+title: "Auto-scheduling"
+description: "Configure forward-mode auto-scheduling, work calendars, project boundaries, unscheduled tasks, and undo/redo in SVAR React Gantt PRO."
+---
+
+<Warning>
+  Auto-scheduling, work calendars, unscheduled tasks, and undo/redo are **PRO-only** features. See [PRO features overview](/pro/overview) to get started.
+</Warning>
+
+Auto-scheduling automatically recalculates task start and end dates when a dependent task changes. Combined with a work calendar and project boundaries, it gives you a fully driven schedule without manual date adjustments.
+
+## The `schedule` prop
+
+Pass a `schedule` object to the `<Gantt>` component to enable scheduling logic.
+
+| Value | Description |
+|---|---|
+| `{ type: 'forward' }` | Default value. Tasks are laid out left-to-right but dates are not auto-driven. |
+| `{ auto: true }` | Enables full auto-scheduling: task dates cascade from `projectStart` through Finish-to-Start dependency chains. |
+
+```jsx
+<Gantt
+  tasks={tasks}
+  links={links}
+  schedule={{ auto: true }}
+  projectStart={new Date(2026, 3, 2)}
+/>
+```
+
+<Note>
+  When `schedule={{ auto: true }}` is active, moving a task or changing its duration will automatically push all downstream dependent tasks forward.
+</Note>
+
+## Project boundaries: `projectStart` and `projectEnd`
+
+Use `projectStart` and `projectEnd` to define the allowed date range for the scheduled project.
+
+| Prop | Type | Description |
+|---|---|---|
+| `projectStart` | `Date \| null` | The earliest date tasks can be scheduled. Auto-scheduling anchors the first task here. |
+| `projectEnd` | `Date \| null` | The latest date tasks should fall within. Used by [critical path](/pro/critical-path) calculations. |
+
+```jsx
+<Gantt
+  tasks={tasks}
+  links={links}
+  schedule={{ auto: true }}
+  projectStart={new Date(2026, 3, 2)}
+  projectEnd={new Date(2026, 5, 2)}
+/>
+```
+
+## Work calendar: the `calendar` prop
+
+The `calendar` prop accepts a `Calendar` instance (imported from `@svar-ui/gantt-store`) that defines working hours for each day of the week. When a calendar is provided:
+
+- Task durations are counted in **working days** only.
+- Weekend or non-working days are greyed out on the timeline.
+- Auto-scheduling skips non-working days when calculating successor start dates.
+
+### Setting up a basic calendar
+
+```jsx
+import { Calendar } from '@svar-ui/gantt-store';
+
+const calendar = new Calendar({
+  weekHours: {
+    monday:    8,
+    tuesday:   8,
+    wednesday: 8,
+    thursday:  8,
+    friday:    8,
+    saturday:  0, // non-working
+    sunday:    0, // non-working
+  },
+});
+
+<Gantt
+  tasks={tasks}
+  links={links}
+  calendar={calendar}
+  schedule={{ auto: true }}
+  projectStart={new Date(2026, 3, 2)}
+/>
+```
+
+### Adding custom rules
+
+Use `calendar.addRule()` to mark additional days as non-working (e.g. public holidays or company-wide off days). The callback receives a `Date` and should return `0` to mark the day as non-working.
+
+```jsx
+// Mark every Wednesday as non-working
+calendar.addRule((date) => {
+  if (date.getDay() === 3) return 0;
+});
+```
+
+After adding a rule, re-serialize the tasks so their start dates are adjusted to the next working day:
+
+```jsx
+const updatedTasks = api.serialize().map((task) => {
+  if (!calendar.isWorkingDay(task.start)) {
+    task.start = calendar.getNextWorkingDay(task.start);
+  }
+  return task;
+});
+
+setTasks(updatedTasks);
+```
+
+## Finish-to-Start dependencies
+
+Auto-scheduling enforces **Finish-to-Start (F2S)** dependency links. When the source task's end date changes, the target task's start date is updated to the next working day after the source finishes.
+
+Links are defined in the standard `links` array using the `'e2s'` (end-to-start) link type:
+
+```jsx
+const links = [
+  { id: 1, source: 1, target: 2, type: 'e2s' },
+  { id: 2, source: 2, target: 3, type: 'e2s' },
+];
+```
+
+## Unscheduled tasks: `unscheduledTasks`
+
+Set `unscheduledTasks={true}` to allow tasks without assigned dates. Unscheduled tasks appear in the grid but are not rendered as bars on the timeline. Users can assign dates by dragging a task onto the chart.
+
+```jsx
+<Gantt
+  tasks={tasks}
+  links={links}
+  schedule={{ auto: true }}
+  unscheduledTasks={true}
+/>
+```
+
+An unscheduled task has no `start` or `end` date:
+
+```jsx
+// Unscheduled task — no start/end
+{ id: 5, text: 'Backlog item', type: 'task', duration: 3, progress: 0 }
+```
+
+## Undo / redo: the `undo` prop
+
+Set `undo={true}` to enable the full undo/redo history stack. Every task and link change is recorded and can be stepped through programmatically.
+
+```jsx
+<Gantt
+  tasks={tasks}
+  links={links}
+  undo={true}
+/>
+```
+
+### Triggering undo and redo
+
+Use the `api.exec()` method to trigger undo and redo actions:
+
+```jsx
+// Undo the last action
+api.exec('undo');
+
+// Redo the last undone action
+api.exec('redo');
+```
+
+### Observing history state
+
+Subscribe to the reactive `history` state to know when undo/redo actions are available:
+
+```jsx
+import { useState, useEffect } from 'react';
+
+function UndoRedoButtons({ api }) {
+  const [history, setHistory] = useState(null);
+
+  useEffect(() => {
+    api.getReactiveState().history.subscribe((v) => setHistory(v));
+  }, [api]);
+
+  return (
+    <>
+      <button
+        disabled={!history?.undo}
+        onClick={() => api.exec('undo')}
+      >
+        Undo ({history?.undo ?? 0})
+      </button>
+      <button
+        disabled={!history?.redo}
+        onClick={() => api.exec('redo')}
+      >
+        Redo ({history?.redo ?? 0})
+      </button>
+    </>
+  );
+}
+```
+
+## Full example
+
+```jsx
+import { useState, useMemo } from 'react';
+import { Gantt, Editor, ContextMenu } from '@svar-ui/react-gantt';
+import { Calendar } from '@svar-ui/gantt-store';
+import '@svar-ui/react-gantt/all.css';
+
+const calendar = new Calendar({
+  weekHours: {
+    monday: 8, tuesday: 8, wednesday: 8,
+    thursday: 8, friday: 8,
+    saturday: 0, sunday: 0,
+  },
+});
+
+const tasks = [
+  { id: 1, text: 'Requirements',  type: 'task', start: new Date(2026, 3, 2), duration: 3, progress: 100 },
+  { id: 2, text: 'Design',        type: 'task', start: new Date(2026, 3, 7), duration: 5, progress: 40 },
+  { id: 3, text: 'Development',   type: 'task', start: new Date(2026, 3, 14), duration: 10, progress: 0 },
+  { id: 4, text: 'Testing',       type: 'task', start: new Date(2026, 3, 28), duration: 5, progress: 0 },
+  // Unscheduled
+  { id: 5, text: 'Documentation', type: 'task', duration: 3, progress: 0 },
+];
+
+const links = [
+  { id: 1, source: 1, target: 2, type: 'e2s' },
+  { id: 2, source: 2, target: 3, type: 'e2s' },
+  { id: 3, source: 3, target: 4, type: 'e2s' },
+];
+
+export default function App() {
+  const [api, setApi] = useState();
+  const [projectStart, setProjectStart] = useState(new Date(2026, 3, 2));
+
+  return (
+    <>
+      <ContextMenu api={api}>
+        <Gantt
+          init={setApi}
+          tasks={tasks}
+          links={links}
+          calendar={calendar}
+          schedule={{ auto: true }}
+          projectStart={projectStart}
+          projectEnd={new Date(2026, 5, 30)}
+          unscheduledTasks={true}
+          undo={true}
+        />
+      </ContextMenu>
+      {api && <Editor api={api} />}
+    </>
+  );
+}
+```

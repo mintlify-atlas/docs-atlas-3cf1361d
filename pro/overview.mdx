@@ -1,0 +1,108 @@
+---
+title: "PRO features"
+description: "An overview of the advanced features available in SVAR React Gantt PRO: auto-scheduling, critical path, baselines, markers, export, and more."
+---
+
+SVAR React Gantt is available as a **free, MIT-licensed** community edition and a **PRO edition** with additional automation logic and export capabilities. This page describes what is included in PRO and how to get started.
+
+<Info>
+  Visit the [SVAR pricing page](https://svar.dev/react/gantt/pricing/) for a full feature comparison and free trial information.
+</Info>
+
+## What's included in PRO
+
+| Feature | Description |
+|---|---|
+| Auto-scheduling | Forward-mode scheduling that cascades task dates from a project start date, respecting Finish-to-Start dependencies |
+| Work calendar | Define working hours per weekday and add custom rules (e.g. company holidays) to drive accurate duration calculations |
+| Critical path | Highlight the longest dependency chain that determines the earliest possible project completion date |
+| Baselines | Store and display original planned dates alongside live task bars for schedule variance analysis |
+| Vertical markers | Place labelled vertical lines at any date on the timeline (e.g. "Today", sprint boundaries, milestones) |
+| Undo / redo | Step backwards and forwards through every change made to tasks and links |
+| Split tasks | Divide a single task bar into multiple non-contiguous segments |
+| Summary task automation | Auto-calculate summary task progress from child tasks and auto-promote parent tasks to summary type |
+| Export to PNG / PDF / Excel | Client-side or server-side export of the full chart |
+| MS Project import / export | Round-trip exchange with Microsoft Project XML format |
+
+## How to get PRO
+
+<Steps>
+  <Step title="Start a free trial">
+    Go to [svar.dev/react/gantt/pricing/](https://svar.dev/react/gantt/pricing/) and start a free trial — no credit card required.
+  </Step>
+  <Step title="Install the PRO package">
+    The PRO edition is distributed as a separate npm package. Follow the installation instructions provided after sign-up to replace the community package.
+  </Step>
+  <Step title="Enable PRO props">
+    PRO features are activated by passing the relevant props to the `<Gantt>` component. No separate license component is required.
+  </Step>
+</Steps>
+
+## Minimal PRO setup
+
+The example below enables auto-scheduling, a work calendar, critical path, baselines, and undo/redo in a single component:
+
+```jsx
+import { Gantt } from '@svar-ui/react-gantt';
+import { Calendar } from '@svar-ui/gantt-store';
+import '@svar-ui/react-gantt/all.css';
+
+const calendar = new Calendar({
+  weekHours: {
+    monday: 8, tuesday: 8, wednesday: 8,
+    thursday: 8, friday: 8,
+    saturday: 0, sunday: 0,
+  },
+});
+
+const tasks = [
+  {
+    id: 1, text: 'Design', type: 'task',
+    start: new Date(2026, 3, 2), duration: 5, progress: 0,
+    base_start: new Date(2026, 3, 2), base_end: new Date(2026, 3, 7),
+  },
+  {
+    id: 2, text: 'Development', type: 'task',
+    start: new Date(2026, 3, 9), duration: 10, progress: 0,
+    base_start: new Date(2026, 3, 9), base_end: new Date(2026, 3, 21),
+  },
+];
+
+const links = [
+  { id: 1, source: 1, target: 2, type: 'e2s' }, // End-to-start (Finish-to-Start)
+];
+
+export default function App() {
+  return (
+    <Gantt
+      tasks={tasks}
+      links={links}
+      calendar={calendar}
+      schedule={{ auto: true }}
+      projectStart={new Date(2026, 3, 2)}
+      projectEnd={new Date(2026, 4, 30)}
+      criticalPath={{ type: 'flexible' }}
+      baselines={true}
+      cellHeight={45}
+      undo={true}
+    />
+  );
+}
+```
+
+## PRO feature pages
+
+<CardGroup cols={2}>
+  <Card title="Auto-scheduling" icon="calendar-check" href="/pro/auto-scheduling">
+    Forward-mode scheduling, work calendars, project boundaries, unscheduled tasks, and undo/redo
+  </Card>
+  <Card title="Critical path" icon="route" href="/pro/critical-path">
+    Calculate and visually highlight the critical path through your project
+  </Card>
+  <Card title="Baselines and markers" icon="chart-gantt" href="/pro/baselines-and-markers">
+    Compare live schedule against a baseline and add vertical timeline markers
+  </Card>
+  <Card title="Export" icon="file-export" href="/pro/export">
+    Export to PNG, PDF, Excel, and MS Project; import from MS Project XML
+  </Card>
+</CardGroup>

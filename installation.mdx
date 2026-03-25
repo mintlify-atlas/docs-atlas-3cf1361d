@@ -1,0 +1,181 @@
+---
+title: 'Installation'
+description: 'Install @svar-ui/react-gantt and configure it for your project.'
+keywords: ['gantt', 'react', 'install', 'setup', 'typescript', 'vite', 'next.js']
+---
+
+## Package installation
+
+<CodeGroup>
+
+```bash npm
+npm install @svar-ui/react-gantt
+```
+
+```bash yarn
+yarn add @svar-ui/react-gantt
+```
+
+```bash pnpm
+pnpm add @svar-ui/react-gantt
+```
+
+</CodeGroup>
+
+## CSS import
+
+The package ships two CSS bundles. Import one of them once — typically at your app entry point or root layout.
+
+<CodeGroup>
+
+```javascript all.css (recommended)
+// Includes component styles AND all dependency styles.
+import '@svar-ui/react-gantt/all.css';
+```
+
+```javascript style.css
+// Component styles only.
+// Use this if you manage dependency styles separately.
+import '@svar-ui/react-gantt/style.css';
+```
+
+</CodeGroup>
+
+<Tip>
+  Use `all.css` unless you have a specific reason to exclude dependency styles. It is the safest option and avoids missing styles from bundled dependencies.
+</Tip>
+
+## Peer dependencies
+
+`@svar-ui/react-gantt` requires React and react-dom as peer dependencies. They are **not** installed automatically.
+
+| Package      | Required version |
+| ------------ | ---------------- |
+| `react`      | `>=18`           |
+| `react-dom`  | `>=18`           |
+
+If you do not have them installed yet:
+
+<CodeGroup>
+
+```bash npm
+npm install react react-dom
+```
+
+```bash yarn
+yarn add react react-dom
+```
+
+```bash pnpm
+pnpm add react react-dom
+```
+
+</CodeGroup>
+
+## TypeScript
+
+TypeScript types are bundled with the package — no separate `@types/*` installation is needed.
+
+The main types you will use are:
+
+```typescript
+import type { ITask, IApi, IConfig } from '@svar-ui/react-gantt';
+```
+
+| Type       | Description                                                      |
+| ---------- | ---------------------------------------------------------------- |
+| `ITask`    | Shape of a single task object (`id`, `text`, `start`, `end`, …) |
+| `IApi`     | API instance returned by the `init` prop.                        |
+| `IConfig`  | All configuration props accepted by `<Gantt>`.                   |
+
+<Note>
+  Types are re-exported from `@svar-ui/gantt-store`, so you can also import them from there if you need lower-level access. For day-to-day use, importing from `@svar-ui/react-gantt` is sufficient.
+</Note>
+
+## Version compatibility
+
+| `@svar-ui/react-gantt` | React    | Node.js  |
+| ---------------------- | -------- | -------- |
+| 2.x (current)          | 18, 19   | 18+      |
+
+## Framework setup
+
+### Vite
+
+No additional configuration is required. The package uses the ES module format (`type: "module"`) and Vite resolves it out of the box.
+
+```javascript vite.config.js
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+});
+```
+
+### webpack 5
+
+webpack 5 resolves ES modules natively. Ensure you have `@babel/preset-react` (or the equivalent SWC transform) configured for JSX.
+
+```javascript webpack.config.js
+module.exports = {
+  resolve: {
+    extensions: ['.js', '.jsx', '.ts', '.tsx'],
+  },
+  module: {
+    rules: [
+      {
+        test: /\.[jt]sx?$/,
+        exclude: /node_modules/,
+        use: 'babel-loader',
+      },
+      {
+        test: /\.css$/,
+        use: ['style-loader', 'css-loader'],
+      },
+    ],
+  },
+};
+```
+
+### Next.js
+
+The package is an ES module. If you are on Next.js 13+ with the App Router you can import it directly in a Client Component.
+
+```jsx app/gantt/page.jsx
+'use client';
+
+import { Gantt } from '@svar-ui/react-gantt';
+import '@svar-ui/react-gantt/all.css';
+
+export default function GanttPage() {
+  const tasks = [
+    {
+      id: 1,
+      start: new Date(2026, 3, 2),
+      duration: 5,
+      text: 'Initial task',
+      progress: 0,
+      parent: 0,
+      type: 'task',
+    },
+  ];
+
+  return <Gantt tasks={tasks} />;
+}
+```
+
+<Warning>
+  Always add the `'use client'` directive when using `@svar-ui/react-gantt` in the Next.js App Router. The component uses browser APIs (DOM, drag events) and cannot be rendered as a React Server Component.
+</Warning>
+
+If you encounter `ERR_REQUIRE_ESM` on older Next.js versions (Pages Router, Node < 18), add the package to `transpilePackages` in your Next.js config:
+
+```javascript next.config.js
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  transpilePackages: ['@svar-ui/react-gantt'],
+};
+
+module.exports = nextConfig;
+```

@@ -1,0 +1,385 @@
+---
+title: Events
+description: Events fired by the SVAR React Gantt component
+---
+
+Events are fired **after** an action has been committed to the store. Subscribe using `api.on(event, handler)`. To intercept and potentially cancel an action before it is applied, use [`api.intercept()`](/api/gantt-api#apiinterceptevent-handler) instead.
+
+```jsx
+function init(api) {
+  api.on("update-task", ({ id }) => {
+    console.log("Task updated:", id);
+  });
+}
+```
+
+---
+
+## add-task
+
+Fired after a new task is added to the chart.
+
+<ResponseField name="id" type="string | number">
+  The ID of the newly created task.
+</ResponseField>
+
+<ResponseField name="mode" type="'child' | 'before' | 'after'">
+  The insertion mode used to place the task relative to the target.
+</ResponseField>
+
+```jsx
+api.on("add-task", ({ id, mode }) => {
+  if (mode === "child") {
+    // A child task was added — the parent may need updating
+    const task = api.getTask(id);
+    console.log("Child added under parent:", task.parent);
+  }
+
+  // Auto-open the editor after adding a task
+  api.exec("show-editor", { id });
+});
+```
+
+---
+
+## update-task
+
+Fired after a task's properties are changed.
+
+<ResponseField name="id" type="string | number">
+  The ID of the updated task.
+</ResponseField>
+
+```jsx
+api.on("update-task", ({ id }) => {
+  const task = api.getTask(id);
+  console.log("Updated:", task.text, "progress:", task.progress);
+});
+```
+
+---
+
+## delete-task
+
+Fired after a task is deleted.
+
+<ResponseField name="id" type="string | number">
+  The ID of the deleted task.
+</ResponseField>
+
+<ResponseField name="source" type="string | number">
+  The ID of the sibling or parent task that was adjacent to the deleted task. Useful for recalculating aggregated values after deletion.
+</ResponseField>
+
+```jsx
+api.on("delete-task", ({ id, source }) => {
+  console.log("Deleted task:", id, "adjacent:", source);
+});
+```
+
+---
+
+## move-task
+
+Fired when a task is moved to a new position in the task tree (reordering in the grid) or dragged along the timeline.
+
+<ResponseField name="id" type="string | number">
+  The ID of the moved task.
+</ResponseField>
+
+<ResponseField name="source" type="string | number">
+  The original parent or sibling ID of the task before the move.
+</ResponseField>
+
+<ResponseField name="mode" type="'before' | 'after' | 'child' | 'up' | 'down'">
+  How the task was repositioned relative to the target.
+</ResponseField>
+
+<ResponseField name="inProgress" type="boolean">
+  `true` while a drag is still in progress (live preview). `false` when the move is finalized. Filter on `inProgress: false` to perform side-effects only once.
+</ResponseField>
+
+```jsx
+api.on("move-task", ({ id, source, mode, inProgress }) => {
+  // Only act on the final move, not every drag frame
+  if (inProgress) return;
+
+  const task = api.getTask(id);
+  if (task.parent !== source) {
+    // Task moved to a different parent
+    console.log("Reparented:", id, "from", source, "to", task.parent);
+  }
+});
+```
+
+---
+
+## copy-task
+
+Fired after a task is duplicated (e.g. via the context menu Copy action).
+
+<ResponseField name="id" type="string | number">
+  The ID of the newly created copy.
+</ResponseField>
+
+```jsx
+api.on("copy-task", ({ id }) => {
+  console.log("Task copied, new id:", id);
+});
+```
+
+---
+
+## drag-task
+
+Fired continuously while a task bar is being dragged on the chart (both move and resize). Also fires once when the drag ends with `inProgress: false`.
+
+<ResponseField name="id" type="string | number">
+  The ID of the task being dragged.
+</ResponseField>
+
+<ResponseField name="left" type="number">
+  Current pixel offset from the left edge of the chart area.
+</ResponseField>
+
+<ResponseField name="width" type="number">
+  Current pixel width of the task bar.
+</ResponseField>
+
+<ResponseField name="top" type="number | undefined">
+  Present when the task is being reordered vertically in the grid. `undefined` when the task is being moved or resized horizontally on the chart.
+</ResponseField>
+
+<ResponseField name="inProgress" type="boolean">
+  `true` during a live drag; `false` on the final drop.
+</ResponseField>
+
+```jsx
+// Intercept to prevent dragging summary tasks horizontally
+api.intercept("drag-task", ({ id, top }) => {
+  if (typeof top === "undefined" && api.getTask(id).type === "summary") {
+    return false;
+  }
+});
+
+// Use api.on to observe drag events
+api.on("drag-task", ({ id, inProgress }) => {
+  if (!inProgress) console.log("Drag finished for:", id);
+});
+```
+
+---
+
+## sort-tasks
+
+Fired after the task list is sorted by a column.
+
+<ResponseField name="key" type="string">
+  The column key used to sort (e.g. `"text"`, `"start"`, `"duration"`).
+</ResponseField>
+
+<ResponseField name="order" type="'asc' | 'desc'">
+  The sort direction.
+</ResponseField>
+
+<ResponseField name="add" type="boolean">
+  When `true`, this sort is being added to an existing multi-column sort.
+</ResponseField>
+
+```jsx
+api.on("sort-tasks", ({ key, order }) => {
+  console.log(`Sorted by ${key} ${order}`);
+  // Update custom sort indicator UI
+  setSortConfig({ key, order });
+});
+```
+
+---
+
+## show-editor
+
+Fired when the editor is about to open for a task, or when it is closed.
+
+<ResponseField name="id" type="string | number | null">
+  The ID of the task being edited. `null` when the editor is closing.
+</ResponseField>
+
+```jsx
+api.on("show-editor", ({ id }) => {
+  if (id) {
+    const task = api.getTask(id);
+    // Adjust editor fields based on task type
+    if (task.type === "milestone") disableProgressField();
+  }
+});
+
+// Intercept to replace with a custom form
+api.intercept("show-editor", ({ id }) => {
+  if (id) {
+    openMyCustomForm(id);
+    return false; // prevent the built-in editor from opening
+  }
+});
+```
+
+---
+
+## zoom-scale
+
+Fired after the zoom level changes (e.g. via Ctrl+scroll).
+
+<ResponseField name="dir" type="number">
+  The direction of the zoom: positive values zoom in, negative values zoom out.
+</ResponseField>
+
+<ResponseField name="offset" type="number">
+  The horizontal pixel offset of the mouse pointer at the time of the zoom, used to keep the view centered on the cursor position.
+</ResponseField>
+
+```jsx
+api.on("zoom-scale", () => {
+  const { zoom } = api.getState();
+  console.log("Current zoom:", zoom);
+});
+```
+
+---
+
+## request-data
+
+Fired when the Gantt needs to lazy-load child data for a task node that has not yet been fetched from the server.
+
+<ResponseField name="id" type="string | number">
+  The ID of the parent task whose children need to be loaded.
+</ResponseField>
+
+After loading the data, respond with `api.exec('provide-data', ...)` to deliver the results.
+
+```jsx
+function init(api) {
+  api.on("request-data", (ev) => {
+    fetch(`/api/tasks/${ev.id}`)
+      .then((res) => res.json())
+      .then((data) => {
+        api.exec("provide-data", {
+          id: ev.id,
+          data: {
+            tasks: data.tasks,
+            links: data.links,
+          },
+        });
+      });
+  });
+}
+```
+
+---
+
+## select-task
+
+Fired after the task selection changes.
+
+<ResponseField name="id" type="string | number">
+  The ID of the task that was clicked or selected.
+</ResponseField>
+
+<ResponseField name="toggle" type="boolean">
+  `true` when Ctrl/Cmd was held during the click (multi-select toggle).
+</ResponseField>
+
+<ResponseField name="range" type="boolean">
+  `true` when Shift was held during the click (range selection).
+</ResponseField>
+
+<ResponseField name="show" type="boolean">
+  `true` when the chart should scroll to bring the selected task into view.
+</ResponseField>
+
+```jsx
+api.on("select-task", ({ id }) => {
+  const task = api.getTask(id);
+  console.log("Selected:", task.text);
+});
+```
+
+---
+
+## open-task
+
+Fired when a summary task node is expanded or collapsed in the grid.
+
+<ResponseField name="id" type="string | number">
+  The ID of the task being toggled.
+</ResponseField>
+
+<ResponseField name="mode" type="boolean">
+  `true` to expand, `false` to collapse.
+</ResponseField>
+
+```jsx
+api.on("open-task", ({ id, mode }) => {
+  console.log(mode ? "Expanded:" : "Collapsed:", id);
+});
+```
+
+---
+
+## add-link
+
+Fired after a dependency link is created between two tasks.
+
+<ResponseField name="link" type="object">
+  <Expandable title="link fields">
+    <ResponseField name="source" type="string | number">
+      ID of the predecessor task.
+    </ResponseField>
+    <ResponseField name="target" type="string | number">
+      ID of the successor task.
+    </ResponseField>
+    <ResponseField name="type" type="string">
+      Link type, one of `"e2s"` (end-to-start), `"s2s"` (start-to-start), `"e2e"` (end-to-end), `"s2e"` (start-to-end).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+```jsx
+api.on("add-link", ({ link }) => {
+  console.log(`Link: ${link.source} → ${link.target} (${link.type})`);
+});
+```
+
+---
+
+## update-link
+
+Fired after a dependency link is updated.
+
+<ResponseField name="id" type="string | number">
+  The ID of the updated link.
+</ResponseField>
+
+<ResponseField name="link" type="object">
+  The updated link properties.
+</ResponseField>
+
+```jsx
+api.on("update-link", ({ id, link }) => {
+  console.log("Link updated:", id, link);
+});
+```
+
+---
+
+## delete-link
+
+Fired after a dependency link is deleted.
+
+<ResponseField name="id" type="string | number">
+  The ID of the deleted link.
+</ResponseField>
+
+```jsx
+api.on("delete-link", ({ id }) => {
+  console.log("Link deleted:", id);
+});
+```

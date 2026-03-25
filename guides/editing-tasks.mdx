@@ -1,0 +1,273 @@
+---
+title: 'Editing Tasks'
+description: 'Add, edit, and delete tasks using the Editor component, hotkeys, and validation.'
+keywords: ['gantt', 'editor', 'task editing', 'validation', 'hotkeys', 'readonly']
+---
+
+The `<Editor>` component provides a form-based UI for editing task properties. It connects to the Gantt through a shared API instance, reads the currently selected task from the store, and dispatches `update-task` and `delete-task` actions when the user makes changes.
+
+## Wiring up the Editor
+
+The minimum setup requires two things: exposing the Gantt API via the `init` prop and passing that API to `<Editor>`.
+
+```jsx GanttWithEditor.jsx
+import { useState } from 'react';
+import { Gantt, Editor } from '@svar-ui/react-gantt';
+import '@svar-ui/react-gantt/all.css';
+
+export default function App() {
+  const [api, setApi] = useState();
+
+  return (
+    <>
+      <Gantt
+        init={setApi}
+        tasks={tasks}
+        links={links}
+        scales={scales}
+      />
+      {api && <Editor api={api} />}
+    </>
+  );
+}
+```
+
+<Note>
+  Render `<Editor>` conditionally (`{api && <Editor api={api} />}`) so it only mounts after the Gantt has initialised and the API is available.
+</Note>
+
+Double-clicking a task bar or a grid row opens the editor automatically. You can also open it programmatically:
+
+```js
+api.exec('show-editor', { id: taskId });
+```
+
+To open the editor automatically after every `add-task` action (so newly created tasks are immediately editable), listen to the event inside `init`:
+
+```jsx
+const init = useCallback((ganttApi) => {
+  setApi(ganttApi);
+  ganttApi.on('add-task', ({ id }) => {
+    ganttApi.exec('show-editor', { id });
+  });
+}, []);
+
+// ...
+<Gantt init={init} ... />
+```
+
+## Sidebar vs modal placement
+
+The `placement` prop on `<Editor>` controls where the form appears. The default is `'sidebar'`, which renders it as a panel alongside the chart. Use `'modal'` to display it as an overlay dialog.
+
+<Tabs>
+  <Tab title="Sidebar (default)">
+    ```jsx
+    <Editor api={api} placement="sidebar" />
+    ```
+  </Tab>
+  <Tab title="Modal">
+    ```jsx
+    <Editor
+      api={api}
+      placement="modal"
+      autoSave={false}
+      topBar={false}
+      bottomBar={{
+        items: [
+          { comp: 'button', type: 'secondary', text: 'Close', id: 'close' },
+          { comp: 'spacer' },
+          { comp: 'button', type: 'danger',    text: 'Delete', id: 'delete' },
+          { comp: 'button', type: 'primary',   text: 'Save',   id: 'save' },
+        ],
+      }}
+    />
+    ```
+
+    When `autoSave={false}`, changes accumulate until the user clicks **Save**.
+  </Tab>
+</Tabs>
+
+## Configuring editor fields
+
+By default the editor shows all standard fields (name, type, start, end, duration, progress, details, links). Use `getEditorItems()` to retrieve those defaults and customise them.
+
+### Selecting a subset of fields
+
+```jsx
+import { Editor, getEditorItems } from '@svar-ui/react-gantt';
+import { useMemo } from 'react';
+
+const keys = ['text', 'type', 'start', 'end', 'duration', 'progress', 'details'];
+const defaultEditorItems = getEditorItems();
+
+const items = useMemo(
+  () => keys.map((key) => ({ ...defaultEditorItems.find((op) => op.key === key) })),
+  [],
+);
+
+// ...
+<Editor api={api} items={items} />
+```
+
+### Adding a custom field
+
+Each item in the `items` array is a field descriptor with at least a `key`, a `comp` (the registered editor control type), and a `label`.
+
+```jsx
+const items = [
+  ...getEditorItems(),
+  {
+    key: 'priority',
+    comp: 'select',
+    label: 'Priority',
+    options: [
+      { id: 'low',    label: 'Low' },
+      { id: 'normal', label: 'Normal' },
+      { id: 'high',   label: 'High' },
+    ],
+  },
+];
+```
+
+Built-in `comp` types are: `text`, `date`, `counter`, `slider`, `twostate`, `select`, `links`.
+
+## Registering custom editor controls
+
+`registerEditorItem(name, Component)` maps a string key to any React component, making it available as a `comp` type in field descriptors. Call it once at module level (or inside a `useEffect` with an empty dependency array).
+
+<Note>
+  `@svar-ui/react-core` is automatically installed as a dependency of `@svar-ui/react-gantt`. You do not need to add it to your `package.json` separately.
+</Note>
+
+```jsx
+import { useEffect } from 'react';
+import { Gantt, Editor, registerEditorItem, getEditorItems } from '@svar-ui/react-gantt';
+import { RadioButtonGroup } from '@svar-ui/react-core';
+import UserCombo from './UserCombo';
+
+// Register once — safe to call before the component tree renders.
+useEffect(() => {
+  registerEditorItem('radio', RadioButtonGroup);
+  registerEditorItem('user-combo', UserCombo);
+}, []);
+
+const items = useMemo(() => {
+  const base = getEditorItems();
+  // Replace the built-in type selector with radio buttons.
+  const idx = base.findIndex((d) => d.key === 'type');
+  base.splice(idx, 1, {
+    key: 'type',
+    comp: 'radio',
+    label: 'Type',
+    options: [{ value: 'task', label: 'Task' }, { value: 'milestone', label: 'Milestone' }],
+    config: { type: 'inline' },
+  });
+
+  // Add a custom assigned-to combo.
+  base.push({
+    key: 'assigned',
+    comp: 'user-combo',
+    label: 'Assigned',
+    options: users,
+  });
+
+  return base;
+}, []);
+```
+
+## Validation
+
+Add `required` and `validation` / `validationMessage` to any field descriptor. Validation runs on every change when `autoSave` is `true`, and on save when `autoSave` is `false`.
+
+```jsx
+const items = useMemo(
+  () =>
+    getEditorItems().map((ed) => ({
+      ...ed,
+      // Task name is required.
+      ...(ed.comp === 'text' && { required: true }),
+      // Duration must not exceed 50 days.
+      ...(ed.comp === 'counter' && {
+        validation: (v) => v <= 50,
+        validationMessage: 'Task duration should not exceed 50 days',
+      }),
+    })),
+  [],
+);
+
+// Pass autoSave={false} so invalid forms are never saved mid-edit.
+<Editor api={api} items={items} autoSave={false} />
+```
+
+<Warning>
+  When `autoSave={true}` (the default), a field with a failing `validation` function will silently block saves for that field only. Set `autoSave={false}` if you need full-form validation with error messages before any data is written.
+</Warning>
+
+## Read-only mode
+
+You can make either the whole Gantt or just the Editor read-only.
+
+<Tabs>
+  <Tab title="Read-only Gantt">
+    ```jsx
+    // Disables all drag, resize, inline editing, and context menu write actions.
+    <Gantt readonly={true} tasks={tasks} scales={scales} />
+    ```
+  </Tab>
+  <Tab title="Read-only Editor">
+    ```jsx
+    // The Gantt stays interactive; the Editor panel shows values but no inputs.
+    <Editor api={api} readonly={true} topBar={true} />
+    ```
+
+    When `readonly` is `true` on `<Editor>`, the top bar only shows a **Close** button (the **Delete** button is hidden).
+  </Tab>
+</Tabs>
+
+## Hotkeys
+
+The Gantt chart registers keyboard shortcuts globally while the chart is in focus. None of the hotkeys fire when the cursor is inside an `<input>` or `<textarea>`.
+
+| Hotkey | Action |
+|--------|--------|
+| `Delete` | Delete the selected task(s) |
+| `Tab` | Indent the selected task (make it a child of the task above) |
+| `Shift+Tab` | Outdent the selected task |
+| `Ctrl+Z` | Undo (requires `undo={true}` on `<Gantt>`) |
+| `Ctrl+Y` | Redo (requires `undo={true}` on `<Gantt>`) |
+
+The Editor additionally supports `Ctrl+Z` / `Ctrl+Y` for undo/redo when the `undo` prop is enabled on `<Gantt>`. These are registered via the `hotkeys` prop on `<Editor>`:
+
+```jsx
+// The Editor wires Ctrl+Z / Ctrl+Y automatically when undo is enabled.
+// Pass extra hotkeys via the hotkeys prop:
+<Editor
+  api={api}
+  hotkeys={{
+    'ctrl+s': (ev) => {
+      ev.preventDefault();
+      api.exec('update-task', { id: activeTaskId, task: currentValues });
+    },
+  }}
+/>
+```
+
+<Note>
+  Hotkeys are processed in last-registered-first order. Returning early from a handler prevents lower-priority handlers from firing. Hotkeys do **not** fire while focus is inside an `<input>` or `<textarea>`.
+</Note>
+
+## Editor props reference
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `api` | `IApi` | — | Required. The API instance obtained from `<Gantt init={...}>`. |
+| `items` | `array` | `[]` | Custom field list. Falls back to `getEditorItems()` defaults when empty. |
+| `placement` | `'sidebar' \| 'modal'` | `'sidebar'` | Where the editor renders. |
+| `layout` | `string` | `'default'` | Layout variant for the editor panel. |
+| `autoSave` | `boolean` | `true` | When `true`, saves each field change immediately. |
+| `readonly` | `boolean` | `false` | Renders field values as plain text; hides the **Delete** button. |
+| `topBar` | `boolean \| object` | `true` | Top bar config. `false` hides it; an object overrides buttons. |
+| `bottomBar` | `boolean \| object` | `true` | Bottom bar config. |
+| `focus` | `boolean` | `false` | Auto-focuses the first editable field on open. |
+| `hotkeys` | `object` | `{}` | Additional hotkey handlers merged with the built-in undo/redo bindings. |

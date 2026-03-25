@@ -1,0 +1,360 @@
+---
+title: Gantt API
+description: Programmatic API for the SVAR React Gantt component
+---
+
+The Gantt API (`IApi`) is the primary interface for interacting with the Gantt component at runtime. You can obtain it in two ways:
+
+<CodeGroup>
+```jsx init prop
+import { Gantt } from "@svar-ui/react-gantt";
+
+function App() {
+  function init(api) {
+    // api is the IApi instance
+    api.on("add-task", ({ id }) => {
+      console.log("Task added:", id);
+    });
+  }
+
+  return <Gantt init={init} tasks={tasks} links={links} scales={scales} />;
+}
+```
+
+```jsx ref
+import { useRef } from "react";
+import { Gantt } from "@svar-ui/react-gantt";
+
+function App() {
+  const ganttRef = useRef(null);
+
+  function handleClick() {
+    const state = ganttRef.current.getState();
+    console.log(state);
+  }
+
+  return (
+    <>
+      <button onClick={handleClick}>Get state</button>
+      <Gantt ref={ganttRef} tasks={tasks} links={links} scales={scales} />
+    </>
+  );
+}
+```
+</CodeGroup>
+
+---
+
+## api.exec(action, data)
+
+Dispatches an action to the Gantt store. Actions trigger data mutations and fire corresponding events that listeners can react to.
+
+<ParamField path="action" type="string" required>
+  The name of the action to dispatch. See the [Actions reference](/api/actions) for all available action names.
+</ParamField>
+
+<ParamField path="data" type="object">
+  The payload for the action. Shape depends on the specific action.
+</ParamField>
+
+```jsx
+api.exec("add-task", {
+  task: { text: "New task" },
+  target: 5,
+  mode: "after",
+});
+
+api.exec("update-task", {
+  id: 12,
+  task: { text: "Renamed task", progress: 50 },
+});
+
+api.exec("delete-task", { id: 12 });
+```
+
+---
+
+## api.on(event, handler)
+
+Subscribes to an event fired after an action completes. Returns a handler reference that can be passed to `api.detach()` to unsubscribe.
+
+<ParamField path="event" type="string" required>
+  The name of the event to listen for. See the [Events reference](/api/events) for all available event names.
+</ParamField>
+
+<ParamField path="handler" type="(data: object) => void" required>
+  Callback invoked with the event payload whenever the event fires.
+</ParamField>
+
+<ResponseField name="returns" type="handler">
+  The same handler function, which can be passed to `api.detach()` to remove the listener.
+</ResponseField>
+
+```jsx
+function init(api) {
+  const handler = api.on("update-task", ({ id }) => {
+    console.log("Task updated:", id);
+  });
+
+  // later, to unsubscribe:
+  api.detach(handler);
+}
+```
+
+---
+
+## api.intercept(event, handler)
+
+Registers an interceptor that runs **before** the action is committed to the store. Returning `false` (or a falsy value) from the handler cancels the action entirely.
+
+<ParamField path="event" type="string" required>
+  The name of the action to intercept.
+</ParamField>
+
+<ParamField path="handler" type="(data: object) => boolean | void" required>
+  Called with the action payload. Return `false` to block the action, or any truthy value (or nothing) to allow it.
+</ParamField>
+
+```jsx
+function init(api) {
+  // Block dragging on summary tasks
+  api.intercept("drag-task", ({ id, top }) => {
+    if (typeof top === "undefined" && api.getTask(id).type === "summary") {
+      return false; // cancel the drag
+    }
+  });
+
+  // Allow sorting only on the "text" column
+  api.intercept("sort-tasks", ({ key }) => {
+    return key === "text";
+  });
+
+  // Intercept the editor open and replace it with a custom form
+  api.intercept("show-editor", ({ id }) => {
+    if (id) openCustomForm(id);
+    return false;
+  });
+}
+```
+
+---
+
+## api.detach(handler)
+
+Removes a previously registered event listener or interceptor.
+
+<ParamField path="handler" type="function" required>
+  The handler reference originally returned by `api.on()` or passed to `api.intercept()`.
+</ParamField>
+
+```jsx
+function init(api) {
+  const handler = api.on("update-task", (ev) => {
+    console.log(ev);
+  });
+
+  // Remove the listener later
+  api.detach(handler);
+}
+```
+
+---
+
+## api.getState()
+
+Returns a synchronous snapshot of the current Gantt state. Useful for reading data outside of event handlers.
+
+<ResponseField name="returns" type="object">
+  A plain object containing the current Gantt state, including tasks, links, zoom level, selection, and more.
+</ResponseField>
+
+```jsx
+function init(api) {
+  api.on("zoom-scale", () => {
+    const { zoom } = api.getState();
+    console.log("Current zoom level:", zoom);
+  });
+
+  // Iterate all top-level tasks
+  const { tasks } = api.getState();
+  tasks.forEach((task) => {
+    console.log(task.id, task.text);
+  });
+}
+```
+
+---
+
+## api.getReactiveState()
+
+Returns a reactive state store. Each property is a subscribable store (writable/readable). Useful for binding Gantt state to your own UI components.
+
+<ResponseField name="returns" type="object">
+  An object of reactive stores. Each store exposes a `.subscribe(callback)` method.
+</ResponseField>
+
+```jsx
+import { useEffect, useState } from "react";
+
+function HistoryButtons({ api }) {
+  const [history, setHistory] = useState(null);
+
+  useEffect(() => {
+    // Subscribe to the undo/redo history store
+    api.getReactiveState().history.subscribe((v) => setHistory(v));
+  }, []);
+
+  return (
+    <>
+      <button disabled={!history?.undo} onClick={() => api.exec("undo")}>
+        Undo ({history?.undo ?? 0})
+      </button>
+      <button disabled={!history?.redo} onClick={() => api.exec("redo")}>
+        Redo ({history?.redo ?? 0})
+      </button>
+    </>
+  );
+}
+```
+
+---
+
+## api.getTask(id)
+
+Retrieves a single task by its ID.
+
+<ParamField path="id" type="string | number" required>
+  The ID of the task to retrieve.
+</ParamField>
+
+<ResponseField name="returns" type="ITask">
+  The task object, including any internal computed fields (`$x`, `$y`, `$w`, `$h`, `$level`, etc.).
+</ResponseField>
+
+```jsx
+function init(api) {
+  api.on("move-task", ({ id }) => {
+    const task = api.getTask(id);
+    console.log(`Moved: ${task.text} (parent: ${task.parent})`);
+  });
+
+  api.intercept("drag-task", ({ id, top }) => {
+    // Block horizontal drag on summary tasks
+    const task = api.getTask(id);
+    if (typeof top === "undefined" && task.type === "summary") return false;
+  });
+}
+```
+
+---
+
+## api.serialize()
+
+Exports the current task data as a plain array of task objects, stripping all internal computed fields. Suitable for saving to a database or sending to a server.
+
+<ResponseField name="returns" type="ITask[]">
+  An array of plain task objects with all user-defined fields and no internal `$`-prefixed fields.
+</ResponseField>
+
+```jsx
+function SaveButton({ api }) {
+  function handleSave() {
+    const tasks = api.serialize();
+    fetch("/api/tasks", {
+      method: "POST",
+      body: JSON.stringify(tasks),
+    });
+  }
+
+  return <button onClick={handleSave}>Save</button>;
+}
+```
+
+---
+
+## api.getTable(waitRender?)
+
+Returns the underlying grid/table API. Useful for advanced grid interactions such as focusing cells or column management.
+
+<ParamField path="waitRender" type="boolean">
+  When `true`, returns a `Promise` that resolves to the table API after the next render tick. Use this when calling immediately after a state change.
+</ParamField>
+
+<ResponseField name="returns" type="TableAPI | Promise<TableAPI>">
+  The table API object, or a Promise resolving to it when `waitRender` is `true`.
+</ResponseField>
+
+```jsx
+function init(api) {
+  // Synchronous — only safe when the table is already rendered
+  const tableApi = api.getTable();
+
+  // Async — safe to call right after a state mutation
+  api.getTable(true).then((tableApi) => {
+    tableApi.exec("focus-cell", { id: 1, column: "text" });
+  });
+}
+```
+
+---
+
+## api.getHistory()
+
+<Note>Requires the `undo` prop to be enabled on the `<Gantt>` component.</Note>
+
+Returns the current undo/redo history stack. Useful for building custom undo/redo UI.
+
+<ResponseField name="returns" type="{ undo: number; redo: number }">
+  An object with counts of available undo and redo steps.
+</ResponseField>
+
+```jsx
+<Gantt undo tasks={tasks} links={links} scales={scales} init={init} />
+```
+
+```jsx
+function init(api) {
+  const history = api.getHistory();
+  console.log(history.undo, "undo steps available");
+  console.log(history.redo, "redo steps available");
+
+  // Trigger undo/redo
+  api.exec("undo");
+  api.exec("redo");
+}
+```
+
+---
+
+## api.setNext(router)
+
+Chains another event bus router after the Gantt's internal router. This is the primary integration point for data providers (e.g. `RestDataProvider`) that need to intercept and relay actions to a backend.
+
+<ParamField path="router" type="EventBusRouter">
+  Another event bus or data provider that implements the router interface.
+</ParamField>
+
+<ResponseField name="returns" type="EventBusRouter">
+  The newly appended router, so chains can be built incrementally.
+</ResponseField>
+
+```jsx
+import { RestDataProvider } from "@svar-ui/gantt-data-provider";
+
+function init(api) {
+  const provider = new RestDataProvider("https://api.example.com");
+
+  // All actions will now be forwarded to the provider
+  api.setNext(provider);
+
+  // Listen for lazy-load requests
+  api.on("request-data", (ev) => {
+    provider.getData(ev.id).then(({ tasks, links }) => {
+      api.exec("provide-data", {
+        id: ev.id,
+        data: { tasks, links },
+      });
+    });
+  });
+}
+```

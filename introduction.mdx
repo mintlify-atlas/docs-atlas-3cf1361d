@@ -1,0 +1,122 @@
+---
+title: "SVAR React Gantt"
+description: "A high-performance, customizable React Gantt chart component with TypeScript support, drag-and-drop editing, and flexible timeline configuration."
+---
+
+<img
+  className="block"
+  src="https://svar.dev/images/github/basic-gantt-react.gif"
+  alt="SVAR React Gantt"
+/>
+
+## Overview
+
+SVAR React Gantt is a production-ready Gantt chart component for React applications. It provides an interactive timeline with drag-and-drop editing, task dependencies, hierarchical subtasks, and flexible time scales — all with full TypeScript support and React 19 compatibility.
+
+The component is designed to handle thousands of tasks efficiently and ships with multiple built-in themes, localization support, and a rich set of UI components including toolbar, context menu, and task editor.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get a working Gantt chart running in under 5 minutes
+  </Card>
+  <Card title="Installation" icon="package" href="/installation">
+    Install the package and set up CSS
+  </Card>
+  <Card title="Configuration" icon="sliders" href="/configuration/tasks-and-links">
+    Configure tasks, links, scales, and columns
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/gantt">
+    Full component props and programmatic API
+  </Card>
+</CardGroup>
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="Interactive timeline" icon="arrows-up-down-left-right">
+    Drag and drop to move, resize, and reorder tasks directly on the timeline
+  </Card>
+  <Card title="Task dependencies" icon="arrow-right-arrow-left">
+    Create and visualize finish-to-start, start-to-start, and other link types
+  </Card>
+  <Card title="Hierarchical tasks" icon="sitemap">
+    Group tasks into summary tasks with automatic rollup of dates and progress
+  </Card>
+  <Card title="Flexible time scales" icon="calendar">
+    Configure hours, days, weeks, months, or custom scale units with zoom support
+  </Card>
+  <Card title="Customizable grid" icon="table-columns">
+    Add, remove, and reorder grid columns with inline editors and sorting
+  </Card>
+  <Card title="Full TypeScript" icon="file-code">
+    Complete type definitions for all props, events, and API methods
+  </Card>
+</CardGroup>
+
+## Free vs. PRO
+
+SVAR React Gantt is available as a **free, MIT-licensed** community edition and a **PRO edition** with advanced features.
+
+| Feature | Free | PRO |
+|---|---|---|
+| Interactive drag-and-drop | ✓ | ✓ |
+| Task dependencies | ✓ | ✓ |
+| Hierarchical tasks | ✓ | ✓ |
+| Configurable time scales | ✓ | ✓ |
+| Toolbar, context menu, editor | ✓ | ✓ |
+| Tooltips and zoom | ✓ | ✓ |
+| TypeScript support | ✓ | ✓ |
+| Auto-scheduling | — | ✓ |
+| Critical path | — | ✓ |
+| Baselines | — | ✓ |
+| Split tasks | — | ✓ |
+| Work calendar | — | ✓ |
+| Undo / redo | — | ✓ |
+| Vertical markers | — | ✓ |
+| Export to PNG, PDF, Excel | — | ✓ |
+| MS Project import/export | — | ✓ |
+
+<Info>
+  Visit the [SVAR pricing page](https://svar.dev/react/gantt/pricing/) for a full feature comparison and to start a free PRO trial.
+</Info>
+
+## Quick example
+
+```jsx
+import { Gantt } from '@svar-ui/react-gantt';
+import '@svar-ui/react-gantt/all.css';
+
+const tasks = [
+  {
+    id: 1,
+    text: 'Project kickoff',
+    start: new Date(2024, 5, 1),
+    duration: 4,
+    progress: 100,
+    parent: 0,
+    type: 'task',
+  },
+  {
+    id: 2,
+    text: 'Design phase',
+    start: new Date(2024, 5, 6),
+    duration: 10,
+    progress: 60,
+    parent: 0,
+    type: 'task',
+  },
+];
+
+const links = [
+  { id: 1, source: 1, target: 2, type: 'e2s' },
+];
+
+export default function App() {
+  return <Gantt tasks={tasks} links={links} />;
+}
+```
+
+## Support
+
+- [GitHub Issues](https://github.com/svar-widgets/react-gantt/issues) — bug reports and feature requests
+- [Community Forum](https://forum.svar.dev) — questions and discussions

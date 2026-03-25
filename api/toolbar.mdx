@@ -1,0 +1,189 @@
+---
+title: "<Toolbar>"
+description: "Props and customization API for the Gantt toolbar component."
+---
+
+The `<Toolbar>` component renders an action bar above the Gantt chart with buttons for adding, deleting, moving, indenting tasks, and (when enabled) undo/redo. It connects to the Gantt through the shared `IApi` instance.
+
+## Import
+
+```jsx
+import { Toolbar, getToolbarButtons, defaultToolbarButtons } from '@svar-ui/react-gantt';
+```
+
+## Basic usage
+
+Pass the `api` instance received from `<Gantt init={setApi}>` to wire the toolbar to the chart.
+
+```jsx
+import { useState } from 'react';
+import { Gantt, Toolbar, Editor } from '@svar-ui/react-gantt';
+import '@svar-ui/react-gantt/all.css';
+
+export default function App() {
+  const [api, setApi] = useState();
+
+  return (
+    <>
+      <Toolbar api={api} />
+      <div style={{ display: 'flex', flex: 1 }}>
+        <Gantt
+          init={setApi}
+          tasks={tasks}
+          links={links}
+          scales={scales}
+        />
+        {api && <Editor api={api} />}
+      </div>
+    </>
+  );
+}
+```
+
+## Props
+
+<ParamField path="api" type="IApi">
+  The Gantt API instance. Obtain it from the `init` callback or a `ref` on `<Gantt>`. When provided, the toolbar reads reactive state (selection, undo history, split-task mode) and dispatches actions back to the chart.
+</ParamField>
+
+<ParamField path="items" type="IToolbarButton[]" default="[]">
+  Custom button definitions. When this array is non-empty it replaces the default button set entirely. When empty (the default), buttons are generated automatically from `getToolbarButtons()` based on the current `api` state.
+
+  ```ts
+  interface IToolbarButton {
+    id: string;          // action identifier
+    comp: 'button' | 'icon' | 'separator' | string;
+    text?: string;
+    icon?: string;
+    type?: 'primary' | 'secondary' | 'danger';
+    handler?: (item: IToolbarButton) => void;
+    isDisabled?: (task: ITask, state: IConfig) => boolean;
+    isHidden?: (task: ITask, state: IConfig) => boolean;
+  }
+  ```
+</ParamField>
+
+## Helper functions
+
+### `getToolbarButtons(options?)`
+
+Returns the default toolbar button configuration array. Use this to obtain the full set of buttons and then add, remove, or modify individual entries before passing the result to the `items` prop.
+
+```ts
+function getToolbarButtons(options?: {
+  undo?: boolean;
+  splitTasks?: boolean;
+}): IToolbarButton[]
+```
+
+| Option | Type | Description |
+|---|---|---|
+| `undo` | `boolean` | Include undo and redo buttons. |
+| `splitTasks` | `boolean` | Include the split-task button. |
+
+### `defaultToolbarButtons`
+
+The static default button array (without any reactive state applied). Useful as a reference for the available button IDs.
+
+```ts
+import { defaultToolbarButtons } from '@svar-ui/react-gantt';
+```
+
+## Default buttons
+
+The default button set includes the following action IDs:
+
+| ID | Description |
+|---|---|
+| `add-task` | Add a new task |
+| `delete-task` | Delete the selected task(s) |
+| `indent-task` | Indent (nest) the selected task |
+| `unindent-task` | Unindent the selected task |
+| `move-task:up` | Move the selected task up |
+| `move-task:down` | Move the selected task down |
+| `split-task` | Split the selected task (PRO) |
+| `undo` | Undo the last action (PRO) |
+| `redo` | Redo the last undone action (PRO) |
+
+Buttons that operate on a selection (`delete-task`, `indent-task`, etc.) are automatically hidden when no tasks are selected.
+
+## Customizing buttons
+
+### Filtering default buttons
+
+Use `getToolbarButtons()` and filter or modify the result:
+
+```jsx
+import { useState, useMemo } from 'react';
+import { Gantt, Toolbar, Editor, getToolbarButtons } from '@svar-ui/react-gantt';
+
+export default function App() {
+  const [api, setApi] = useState();
+
+  // Remove indent buttons and add a custom action
+  const items = useMemo(() => {
+    const buttons = getToolbarButtons().filter(
+      (b) => !b.id?.includes('indent')
+    );
+    buttons.push({
+      id: 'my-action',
+      comp: 'icon',
+      icon: 'wxi-plus',
+      handler: () => alert('Custom action!'),
+    });
+    return buttons;
+  }, []);
+
+  return (
+    <>
+      <Toolbar api={api} items={items} />
+      <Gantt init={setApi} tasks={tasks} />
+    </>
+  );
+}
+```
+
+### Replacing the toolbar entirely
+
+For full control, build your own toolbar using `api.exec()` directly and skip the `<Toolbar>` component altogether:
+
+```jsx
+import { useState, useEffect } from 'react';
+import { Gantt } from '@svar-ui/react-gantt';
+
+export default function App() {
+  const [api, setApi] = useState(null);
+  const [selected, setSelected] = useState([]);
+
+  useEffect(() => {
+    if (!api) return;
+    // Subscribe to selection changes via the reactive state store
+    const unsub = api.getReactiveState().selected.subscribe((v) => {
+      setSelected(v ?? []);
+    });
+    return () => unsub?.();
+  }, [api]);
+
+  function addTask() {
+    api.exec('add-task', {
+      task: { text: 'New task', type: 'task' },
+    });
+  }
+
+  function deleteTask() {
+    selected.forEach((id) => api.exec('delete-task', { id }));
+  }
+
+  return (
+    <>
+      <div>
+        <button onClick={addTask}>Add</button>
+        {selected.length > 0 && (
+          <button onClick={deleteTask}>Delete</button>
+        )}
+      </div>
+      <Gantt init={setApi} tasks={tasks} />
+    </>
+  );
+}
+```

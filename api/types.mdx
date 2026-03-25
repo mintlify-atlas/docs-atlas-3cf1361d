@@ -1,0 +1,410 @@
+---
+title: TypeScript Types
+description: TypeScript types and interfaces exported by SVAR React Gantt
+---
+
+All types are exported from `@svar-ui/react-gantt` and re-exported from the underlying `@svar-ui/gantt-store` package.
+
+```ts
+import type {
+  ITask,
+  IConfig,
+  IApi,
+  IGanttColumn,
+  IColumnConfig,
+  TMethodsConfig,
+  GanttActions,
+} from "@svar-ui/react-gantt";
+```
+
+---
+
+## ITask
+
+Represents a single row in the Gantt chart. Both tasks and milestones share this interface.
+
+```ts
+interface ITask {
+  id: string | number;
+  text: string;
+  start?: Date;
+  end?: Date;
+  duration?: number;
+  progress?: number;
+  parent?: string | number;
+  type?: string;
+  open?: boolean;
+  lazy?: boolean;
+  data?: ITask[];
+  [key: string]: any; // custom fields
+}
+```
+
+<ResponseField name="id" type="string | number" required>
+  Unique identifier for the task.
+</ResponseField>
+
+<ResponseField name="text" type="string">
+  Display label shown in the grid and on the task bar.
+</ResponseField>
+
+<ResponseField name="start" type="Date">
+  Start date of the task. Can be computed from `duration` if omitted for certain task types.
+</ResponseField>
+
+<ResponseField name="end" type="Date">
+  End date of the task. Mutually exclusive with `duration` — provide one or the other.
+</ResponseField>
+
+<ResponseField name="duration" type="number">
+  Task length in `durationUnit` units (default: days). Alternative to providing `end`.
+</ResponseField>
+
+<ResponseField name="progress" type="number">
+  Completion percentage, from `0` to `100`.
+</ResponseField>
+
+<ResponseField name="parent" type="string | number">
+  ID of the parent task. Use `0` or omit for root-level tasks.
+</ResponseField>
+
+<ResponseField name="type" type="string">
+  Task type. Built-in values: `"task"` (default), `"summary"`, `"milestone"`. Custom types can be registered via `taskTypes`.
+</ResponseField>
+
+<ResponseField name="open" type="boolean">
+  Whether a summary task node is expanded. Defaults to `false`.
+</ResponseField>
+
+<ResponseField name="lazy" type="boolean">
+  When `true`, child data for this task has not been loaded yet. The Gantt fires the `request-data` event when the node is expanded.
+</ResponseField>
+
+<ResponseField name="data" type="ITask[]">
+  Pre-loaded child tasks. When populated, the task renders as a summary node in the grid.
+</ResponseField>
+
+### Example
+
+```ts
+const tasks: ITask[] = [
+  {
+    id: 1,
+    text: "Project planning",
+    progress: 40,
+    parent: 0,
+    type: "summary",
+    open: true,
+  },
+  {
+    id: 10,
+    text: "Marketing analysis",
+    start: new Date(2026, 3, 2),
+    duration: 3,
+    progress: 100,
+    parent: 1,
+    type: "task",
+  },
+  {
+    id: 11,
+    text: "Kickoff milestone",
+    start: new Date(2026, 3, 9),
+    parent: 1,
+    type: "milestone",
+  },
+];
+```
+
+---
+
+## IConfig
+
+Configuration props passed directly to the `<Gantt>` component (excluding the React-specific and event callback props).
+
+<ResponseField name="tasks" type="ITask[]">
+  The array of task objects to display.
+</ResponseField>
+
+<ResponseField name="links" type="object[]">
+  Dependency links between tasks. Each link has `id`, `source`, `target`, and `type` fields.
+</ResponseField>
+
+<ResponseField name="scales" type="object[]">
+  Time scale configuration. Each scale entry defines `unit`, `step`, and `format`.
+
+  ```ts
+  const scales = [
+    { unit: "month", step: 1, format: "%F %Y" },
+    { unit: "day",   step: 1, format: "%j" },
+  ];
+  ```
+</ResponseField>
+
+<ResponseField name="columns" type="false | IColumnConfig[]">
+  Grid column definitions. Pass `false` to hide the grid entirely.
+</ResponseField>
+
+<ResponseField name="start" type="Date | null">
+  Explicit chart start date. When `null`, derived automatically from task dates.
+</ResponseField>
+
+<ResponseField name="end" type="Date | null">
+  Explicit chart end date. When `null`, derived automatically from task dates.
+</ResponseField>
+
+<ResponseField name="cellWidth" type="number">
+  Width in pixels of a single time unit cell. Default: `100`.
+</ResponseField>
+
+<ResponseField name="cellHeight" type="number">
+  Row height in pixels. Default: `38`.
+</ResponseField>
+
+<ResponseField name="scaleHeight" type="number">
+  Height of the header scale row in pixels. Default: `36`.
+</ResponseField>
+
+<ResponseField name="lengthUnit" type="string">
+  The time unit used to measure cell width (`"day"`, `"hour"`, etc.). Default: `"day"`.
+</ResponseField>
+
+<ResponseField name="durationUnit" type="string">
+  The time unit used to interpret the `duration` field on tasks. Default: `"day"`.
+</ResponseField>
+
+<ResponseField name="zoom" type="boolean | object">
+  Enables or configures zoom. `true` enables the default zoom. An object configures zoom levels and scale sets.
+</ResponseField>
+
+<ResponseField name="autoScale" type="boolean">
+  When `true`, the chart automatically adjusts its visible range to fit all tasks. Default: `true`.
+</ResponseField>
+
+<ResponseField name="readonly" type="boolean">
+  Disables all editing interactions when `true`. Default: `false`.
+</ResponseField>
+
+<ResponseField name="baselines" type="boolean">
+  Renders baseline bars for tasks that have `base_start` and `base_end` fields. Default: `false`.
+</ResponseField>
+
+<ResponseField name="unscheduledTasks" type="boolean">
+  Shows tasks that have no start/end dates in a separate unscheduled panel. Default: `false`.
+</ResponseField>
+
+<ResponseField name="splitTasks" type="boolean">
+  Enables split-task (segmented bar) support. Default: `false`.
+</ResponseField>
+
+<ResponseField name="undo" type="boolean">
+  Enables undo/redo history. Default: `false`.
+</ResponseField>
+
+<ResponseField name="selected" type="Array<string | number>">
+  Array of currently selected task IDs (controlled).
+</ResponseField>
+
+<ResponseField name="activeTask" type="string | number | null">
+  The ID of the task currently open in the editor (controlled).
+</ResponseField>
+
+<ResponseField name="markers" type="object[]">
+  Timeline marker definitions. Each marker has `start`, `text`, and optional `css` fields.
+</ResponseField>
+
+<ResponseField name="taskTypes" type="object[]">
+  Custom task type definitions. Each entry specifies `id`, `label`, and rendering options.
+</ResponseField>
+
+<ResponseField name="criticalPath" type="object | null">
+  Critical path configuration. When set, highlights the critical path on the chart.
+</ResponseField>
+
+<ResponseField name="schedule" type="{ type?: 'forward'; auto?: boolean }">
+  Auto-scheduling configuration. `{ type: 'forward' }` (default) enables basic forward scheduling from `projectStart`. `{ auto: true }` enables full auto-scheduling where task dates are continuously recalculated from Finish-to-Start dependencies.
+</ResponseField>
+
+<ResponseField name="projectStart" type="Date | null">
+  Fixed project start date used by the auto-scheduler.
+</ResponseField>
+
+<ResponseField name="projectEnd" type="Date | null">
+  Fixed project end date used by the auto-scheduler.
+</ResponseField>
+
+<ResponseField name="calendar" type="Calendar | null">
+  A `Calendar` instance defining working days and hours. Automatically highlights non-working time.
+</ResponseField>
+
+<ResponseField name="summary" type="object | null">
+  Summary task behaviour configuration. E.g. `{ autoProgress: true }` to automatically roll up child progress.
+</ResponseField>
+
+<ResponseField name="highlightTime" type="(date: Date, unit: 'day' | 'hour') => string">
+  A function that returns a CSS class name for a given time cell, used to highlight weekends or holidays.
+</ResponseField>
+
+---
+
+## IApi
+
+The programmatic API object returned via the `init` prop or a React `ref`. See the [Gantt API reference](/api/gantt-api) for full method documentation.
+
+```ts
+interface IApi {
+  exec(action: string, data?: object): void;
+  on(event: string, handler: (data: any) => void): typeof handler;
+  intercept(event: string, handler: (data: any) => boolean | void): void;
+  detach(handler: Function): void;
+  getState(): object;
+  getReactiveState(): object;
+  getTask(id: string | number): ITask;
+  serialize(): ITask[];
+  getTable(waitRender?: boolean): any | Promise<any>;
+  getHistory(): { undo: number; redo: number };
+  setNext(router: object): object;
+}
+```
+
+---
+
+## IGanttColumn
+
+The base column definition used internally by the Gantt store. The public-facing `IColumnConfig` extends this with additional grid-level options.
+
+<ResponseField name="id" type="string" required>
+  Unique column identifier, also used as the property key on task objects.
+</ResponseField>
+
+<ResponseField name="header" type="string">
+  Column header label.
+</ResponseField>
+
+<ResponseField name="width" type="number">
+  Column width in pixels.
+</ResponseField>
+
+<ResponseField name="flex" type="number">
+  Flex-grow factor. Mutually exclusive with `width`.
+</ResponseField>
+
+<ResponseField name="sort" type="boolean">
+  Enables click-to-sort on this column. Default: `true`.
+</ResponseField>
+
+<ResponseField name="align" type="'left' | 'center' | 'right'">
+  Cell content alignment.
+</ResponseField>
+
+---
+
+## IColumnConfig
+
+Extends `IGanttColumn` with additional cell, header, and editor configuration provided by the underlying grid component.
+
+```ts
+interface IColumnConfig extends Omit<IGanttColumn, 'header'> {
+  cell?: ITableColumn['cell'];
+  header?: ITableColumn['header'];
+  editor?: ITableColumn['editor'];
+}
+```
+
+<ResponseField name="cell" type="ITableColumn['cell']">
+  Custom cell renderer. A component or render function that receives the row data.
+</ResponseField>
+
+<ResponseField name="header" type="ITableColumn['header']">
+  Custom header renderer. Overrides the plain `string` header from `IGanttColumn`.
+</ResponseField>
+
+<ResponseField name="editor" type="ITableColumn['editor']">
+  Inline cell editor configuration. When set, clicking a cell in this column opens an inline editor instead of the task editor panel.
+</ResponseField>
+
+### Example
+
+```tsx
+import { defaultColumns } from "@svar-ui/react-gantt";
+
+const columns: IColumnConfig[] = [
+  ...defaultColumns,
+  {
+    id: "assigned",
+    header: "Assignee",
+    width: 120,
+    cell: ({ row }) => <span>{row.assigned ?? "—"}</span>,
+  },
+];
+```
+
+---
+
+## GanttActions
+
+A utility type that derives `on*` callback props from the store's `TMethodsConfig`. It generates camelCase prop names by removing hyphens from action names.
+
+```ts
+type GanttActions<TMethodsConfig extends Record<string, any>> = {
+  [K in keyof TMethodsConfig as EventName<K & string>]?: (
+    ev: TMethodsConfig[K],
+  ) => void;
+} & {
+  [key: `on${string}`]: (ev?: any) => void;
+};
+```
+
+This means every action name is also available as an inline prop by prepending `on` and converting each hyphen-separated segment to PascalCase:
+
+| Action name       | Prop name          |
+|-------------------|--------------------|
+| `add-task`        | `onAddTask`        |
+| `update-task`     | `onUpdateTask`     |
+| `delete-task`     | `onDeleteTask`     |
+| `select-task`     | `onSelectTask`     |
+| `sort-tasks`      | `onSortTasks`      |
+| `show-editor`     | `onShowEditor`     |
+| `zoom-scale`      | `onZoomScale`      |
+| `move-task`       | `onMoveTask`       |
+| `scroll-chart`    | `onScrollChart`    |
+| `drag-task`       | `onDragTask`       |
+| `open-task`       | `onOpenTask`       |
+| `add-link`        | `onAddLink`        |
+| `delete-link`     | `onDeleteLink`     |
+
+```tsx
+<Gantt
+  tasks={tasks}
+  links={links}
+  scales={scales}
+  onAddTask={({ id }) => console.log("Added:", id)}
+  onUpdateTask={({ id }) => console.log("Updated:", id)}
+  onDeleteTask={({ id }) => console.log("Deleted:", id)}
+/>
+```
+
+---
+
+## TMethodsConfig
+
+A record type mapping each action/event name to its payload shape. Defined in `@svar-ui/gantt-store` and used to derive both `GanttActions` props and the `IApi` event handler signatures.
+
+```ts
+type TMethodsConfig = Record<string, Record<string, any>>;
+```
+
+Used generically throughout the type system:
+
+```ts
+export declare const Gantt: FC<
+  {
+    columns?: false | IColumnConfig[];
+    taskTemplate?: FC<{ data: ITask; api: IApi; onaction: Function }>;
+    readonly?: boolean;
+    cellBorders?: 'column' | 'full';
+    highlightTime?: (date: Date, unit: 'day' | 'hour') => string;
+    init?: (api: IApi) => void;
+  } & IConfig &
+    GanttActions<TMethodsConfig>
+>;
+```

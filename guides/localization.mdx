@@ -1,0 +1,186 @@
+---
+title: 'Localization'
+description: 'Apply locale packages, override labels, customise date formats, and set the calendar week start day.'
+keywords: ['gantt', 'locale', 'localization', 'i18n', 'date format', 'translation']
+---
+
+SVAR Gantt ships with a built-in English locale and an optional Chinese locale via `@svar-ui/gantt-locales`. The `<Locale>` component from `@svar-ui/react-core` applies a locale to the entire component tree, including the `<Editor>`, `<Toolbar>`, and `<ContextMenu>`.
+
+## Applying a locale
+
+<Steps>
+  <Step title="Import the locale data">
+    ```js
+    import { cn } from '@svar-ui/gantt-locales';
+    import { cn as cnCore } from '@svar-ui/core-locales';
+    ```
+
+    The Gantt-specific translations live in `@svar-ui/gantt-locales`. Core UI labels (buttons, pickers) live in `@svar-ui/core-locales`. You normally need both.
+  </Step>
+  <Step title="Wrap the component tree with Locale">
+    ```jsx
+    import { Locale } from '@svar-ui/react-core';
+
+    <Locale words={{ ...cn, ...cnCore }}>
+      <Toolbar api={api} />
+      <ContextMenu api={api}>
+        <Gantt init={setApi} tasks={tasks} scales={scales} zoom />
+      </ContextMenu>
+      {api && <Editor api={api} />}
+    </Locale>
+    ```
+
+    All Gantt components inside the `<Locale>` boundary pick up the supplied words.
+  </Step>
+</Steps>
+
+### Switching locales at runtime
+
+Because `<Locale>` is a context provider, swapping it in and out re-mounts all children. A clean pattern is to conditionally render a separate Gantt widget per locale:
+
+```jsx
+import { useState } from 'react';
+import { Locale, Segmented } from '@svar-ui/react-core';
+import { cn } from '@svar-ui/gantt-locales';
+import { cn as cnCore } from '@svar-ui/core-locales';
+
+function App({ skinSettings }) {
+  const [lang, setLang] = useState('en');
+
+  const langs = [
+    { id: 'en', label: 'EN' },
+    { id: 'cn', label: 'CN' },
+  ];
+
+  return (
+    <div>
+      <Segmented
+        options={langs}
+        value={lang}
+        onChange={({ value }) => setLang(value)}
+      />
+      {lang === 'en' && <GanttWidget />}
+      {lang === 'cn' && (
+        <Locale words={{ ...cn, ...cnCore }}>
+          <GanttWidget />
+        </Locale>
+      )}
+    </div>
+  );
+}
+```
+
+## Overriding labels
+
+You can override any individual label by merging a partial words object into the locale:
+
+```jsx
+import { en } from '@svar-ui/gantt-locales';
+import { en as enCore } from '@svar-ui/core-locales';
+import { Locale } from '@svar-ui/react-core';
+
+const customWords = {
+  ...en,
+  ...enCore,
+  gantt: {
+    ...en.gantt,
+    // Override individual label strings.
+    Save:   'Apply',
+    Delete: 'Remove',
+    'Add task': 'New task',
+  },
+};
+
+<Locale words={customWords}>
+  <Gantt init={setApi} tasks={tasks} scales={scales} />
+  {api && <Editor api={api} />}
+</Locale>
+```
+
+<Tip>
+  Inspect the `en` export from `@svar-ui/gantt-locales` in your editor to see all available label keys.
+</Tip>
+
+## Date format customisation
+
+Date formatting in the editor and grid is controlled by the `dateFormat` key inside the locale's `gantt` group and the `formats` group.
+
+```jsx
+const customWords = {
+  ...en,
+  ...enCore,
+  gantt: {
+    ...en.gantt,
+    // Override the date display format.
+    // Uses strftime-style tokens: %Y year, %m month, %d day.
+    dateFormat: '%m/%d/%Y',
+  },
+};
+
+<Locale words={customWords}>
+  <Gantt init={setApi} tasks={tasks} scales={scales} />
+  {api && <Editor api={api} />}
+</Locale>
+```
+
+## Calendar week start day
+
+The locale's `calendar.weekStart` value determines the first day of the week in date pickers and week-unit scales. `0` = Sunday (default for `en`), `1` = Monday.
+
+```jsx
+const customWords = {
+  ...en,
+  ...enCore,
+  calendar: {
+    ...enCore.calendar,
+    weekStart: 1, // Monday
+  },
+};
+
+<Locale words={customWords}>
+  <Gantt init={setApi} tasks={tasks} scales={scales} />
+</Locale>
+```
+
+<Note>
+  The `_weekStart` value from the locale is also forwarded into the Gantt data store and affects week-unit scale header rendering.
+</Note>
+
+## Duration unit labels
+
+The Gantt displays durations in the editor using labels from the locale. Override the `durationUnit` labels to localise them:
+
+```jsx
+const customWords = {
+  ...en,
+  ...enCore,
+  gantt: {
+    ...en.gantt,
+    // Duration label keys used in the editor.
+    day:  'jour',
+    days: 'jours',
+    hour:  'heure',
+    hours: 'heures',
+  },
+};
+```
+
+## Available locale packages
+
+| Package | Export | Language |
+|---------|--------|----------|
+| `@svar-ui/gantt-locales` | `en` | English (default) |
+| `@svar-ui/gantt-locales` | `cn` | Chinese (Simplified) |
+| `@svar-ui/core-locales` | `en` | English core UI |
+| `@svar-ui/core-locales` | `cn` | Chinese core UI |
+
+Both packages ship as named exports from a single entry point. Import the language you need:
+
+```js
+import { en, cn } from '@svar-ui/gantt-locales';
+import { en as enCore, cn as cnCore } from '@svar-ui/core-locales';
+```
+
+<Note>
+  Always pair a Gantt locale with its matching core locale so that date pickers, buttons, and other core UI elements are also translated.
+</Note>

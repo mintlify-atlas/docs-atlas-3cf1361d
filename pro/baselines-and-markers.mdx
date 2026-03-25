@@ -1,0 +1,259 @@
+---
+title: "Baselines and markers"
+description: "Add baseline bars to track schedule variance and place vertical timeline markers at key dates in SVAR React Gantt PRO."
+---
+
+<Warning>
+  Baselines and vertical markers are **PRO-only** features. See [PRO features overview](/pro/overview) to get started.
+</Warning>
+
+## Baselines
+
+A baseline stores the **originally planned dates** for each task and renders them as a secondary bar beneath the live task bar. This lets you instantly see whether the current schedule is ahead of, on track with, or behind the original plan.
+
+### Enabling baselines
+
+Set `baselines={true}` on the `<Gantt>` component to turn on baseline rendering.
+
+```jsx
+<Gantt
+  tasks={tasks}
+  links={links}
+  baselines={true}
+  cellHeight={45}
+/>
+```
+
+<Tip>
+  Increase `cellHeight` (e.g. to `45`) when baselines are enabled so the baseline bar and live bar both fit comfortably inside a task row.
+</Tip>
+
+### Task data structure for baselines
+
+Each task object can carry three additional fields that define its baseline:
+
+| Field | Type | Description |
+|---|---|---|
+| `base_start` | `Date` | Baseline start date |
+| `base_end` | `Date` | Baseline end date |
+| `base_duration` | `number` | Baseline duration in the configured `durationUnit` |
+
+```jsx
+const tasks = [
+  {
+    id: 1,
+    text: 'Design phase',
+    type: 'task',
+    start: new Date(2026, 3, 7),   // live start (shifted by 2 days)
+    end:   new Date(2026, 3, 14),
+    duration: 5,
+    progress: 40,
+    // baseline — the original plan
+    base_start:    new Date(2026, 3, 2),
+    base_end:      new Date(2026, 3, 9),
+    base_duration: 5,
+  },
+];
+```
+
+When `baselines={true}`, the Gantt renders a baseline bar using the `base_start`/`base_end` values. If those fields are absent on a task, no baseline bar is shown for that task.
+
+### Capturing a baseline snapshot
+
+A common pattern is to snapshot the current task dates into the baseline fields at project start (or after a re-baseline event):
+
+```jsx
+function init(ganttApi) {
+  setApi(ganttApi);
+
+  // Copy current scheduled dates into baseline fields
+  const baselinedTasks = ganttApi.serialize().map((task) => ({
+    ...task,
+    base_start:    task.start,
+    base_end:      task.end,
+    base_duration: task.segments ? 0 : task.duration,
+  }));
+
+  setTasks(baselinedTasks);
+}
+
+<Gantt
+  init={init}
+  tasks={tasks}
+  links={links}
+  baselines={true}
+  cellHeight={45}
+/>
+```
+
+### Editing baseline dates in the task editor
+
+Add `base_start`, `base_end`, and `base_duration` fields to the `<Editor>` items array to let users view and modify baseline dates directly from the task edit form:
+
+```jsx
+import { Gantt, Editor, getEditorItems } from '@svar-ui/react-gantt';
+
+const items = getEditorItems().flatMap((item) =>
+  item.key === 'links'
+    ? [
+        { key: 'base_start',    comp: 'date',    label: 'Baseline start' },
+        { key: 'base_end',      comp: 'date',    label: 'Baseline end' },
+        { key: 'base_duration', comp: 'counter', hidden: true },
+        item,
+      ]
+    : item,
+);
+
+<Editor api={api} items={items} />
+```
+
+---
+
+## Vertical markers
+
+Markers are labelled vertical lines drawn across the full height of the timeline at a specified date. Use them to mark significant points such as today's date, sprint boundaries, or project milestones.
+
+### The `markers` prop
+
+Pass an array of marker objects to the `markers` prop:
+
+```jsx
+<Gantt
+  tasks={tasks}
+  links={links}
+  markers={markers}
+/>
+```
+
+### Marker object structure
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `start` | `Date` | Yes | The date at which to draw the vertical line |
+| `text` | `string` | No | Label shown on the marker line |
+| `css` | `string` | No | CSS class name applied to the marker element for custom styling |
+
+```jsx
+const markers = [
+  {
+    start: new Date(2026, 3, 2),
+    text: 'Project start',
+  },
+  {
+    start: new Date(2026, 3, 8),
+    text: 'Today',
+    css: 'today-marker',
+  },
+  {
+    start: new Date(2026, 4, 3),
+    text: 'Project end',
+    css: 'end-marker',
+  },
+];
+```
+
+### Styling markers
+
+Use the `css` field to apply a custom class and override the default marker colour or style:
+
+```css
+/* Style for the "Today" marker */
+.wx-gantt .today-marker {
+  background-color: rgba(255, 84, 84, 0.77);
+}
+
+/* Dashed end-of-project marker */
+.wx-gantt .end-marker {
+  border-left: 2px dashed #6aa2f9;
+}
+```
+
+<Note>
+  When exporting with server-side PDF/PNG export, include any custom marker CSS in the `styles` field of the export options so it is applied to the rendered output. See [Export](/pro/export) for details.
+</Note>
+
+### Dynamic markers
+
+Because `markers` is a reactive prop, you can update the markers array at any time — for example, to always show today's date:
+
+```jsx
+import { useState, useMemo } from 'react';
+import { Gantt } from '@svar-ui/react-gantt';
+import '@svar-ui/react-gantt/all.css';
+
+export default function App() {
+  const markers = useMemo(
+    () => [
+      { start: new Date(), text: 'Today', css: 'today-marker' },
+    ],
+    [],
+  );
+
+  return (
+    <Gantt
+      tasks={tasks}
+      links={links}
+      markers={markers}
+    />
+  );
+}
+```
+
+---
+
+## Combined example
+
+The example below uses both baselines and markers together — a common pattern for project health dashboards:
+
+```jsx
+import { useState, useMemo } from 'react';
+import { Gantt, Editor } from '@svar-ui/react-gantt';
+import '@svar-ui/react-gantt/all.css';
+
+const tasks = [
+  {
+    id: 1, text: 'Kickoff',    type: 'task',
+    start: new Date(2026, 3, 2), end: new Date(2026, 3, 4), duration: 2, progress: 100,
+    base_start: new Date(2026, 3, 2), base_end: new Date(2026, 3, 4), base_duration: 2,
+  },
+  {
+    id: 2, text: 'Design',     type: 'task',
+    start: new Date(2026, 3, 7), end: new Date(2026, 3, 14), duration: 5, progress: 50,
+    base_start: new Date(2026, 3, 5), base_end: new Date(2026, 3, 12), base_duration: 5,
+  },
+  {
+    id: 3, text: 'Development',type: 'task',
+    start: new Date(2026, 3, 15), end: new Date(2026, 3, 25), duration: 7, progress: 0,
+    base_start: new Date(2026, 3, 13), base_end: new Date(2026, 3, 22), base_duration: 7,
+  },
+];
+
+const links = [
+  { id: 1, source: 1, target: 2, type: 'e2s' },
+  { id: 2, source: 2, target: 3, type: 'e2s' },
+];
+
+const markers = [
+  { start: new Date(2026, 3, 2),  text: 'Start',       css: 'start-marker' },
+  { start: new Date(2026, 3, 8),  text: 'Sprint 1 end' },
+  { start: new Date(2026, 4, 3),  text: 'Delivery',    css: 'delivery-marker' },
+];
+
+export default function App() {
+  const [api, setApi] = useState();
+
+  return (
+    <>
+      <Gantt
+        ref={setApi}
+        tasks={tasks}
+        links={links}
+        baselines={true}
+        cellHeight={45}
+        markers={markers}
+      />
+      {api && <Editor api={api} />}
+    </>
+  );
+}
+```

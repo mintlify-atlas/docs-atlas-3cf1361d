@@ -1,0 +1,220 @@
+---
+title: 'Performance'
+description: 'Optimise SVAR Gantt for large datasets with virtual scrolling, lazy loading, batched updates, and server-side data patterns.'
+keywords: ['gantt', 'performance', 'large dataset', 'virtual scrolling', 'lazy loading', 'batch provider']
+---
+
+SVAR Gantt is built for high-volume projects. Virtual scrolling is enabled by default — only the rows and chart cells currently in the viewport are rendered regardless of total task count. The demo below measures rendering 10,000 tasks spread across 3 years.
+
+## Virtual scrolling
+
+No configuration is needed. The chart and grid virtualise both rows (vertical) and time cells (horizontal) automatically. You will not notice a difference in the component API whether you have 50 tasks or 50,000.
+
+```jsx
+// Renders 10,000 tasks with default virtual scrolling.
+import { Gantt } from '@svar-ui/react-gantt';
+
+<Gantt tasks={generatedTasks} links={generatedLinks} scales={scales} />
+```
+
+<Note>
+  The 10,000-task performance demo renders and measures the initial paint time on the client. See the [live demo](https://docs.svar.dev/react/gantt/samples/) for an interactive benchmark.
+</Note>
+
+## Lazy loading with the `lazy` flag
+
+For very deep task hierarchies you can defer loading children until a summary task is expanded. Set `lazy: true` on any task that has children not yet included in the initial dataset.
+
+```js
+const tasks = [
+  {
+    id: 1,
+    text: 'Phase 1',
+    type: 'summary',
+    open: false,
+    lazy: true,   // Children are not yet in the tasks array.
+    parent: 0,
+    start: new Date(2026, 0, 1),
+    duration: 90,
+  },
+  // Phase 1's children are loaded on demand.
+];
+```
+
+When the user expands a lazy task, the Gantt emits a `request-data` event with the expanded task's `id`. Respond by fetching the children and calling `api.exec('provide-data', ...)` to insert them:
+
+```jsx
+const init = useCallback((api) => {
+  setApi(api);
+
+  api.on('request-data', (ev) => {
+    fetch(`/api/tasks/${ev.id}`)
+      .then((res) => res.json())
+      .then(({ tasks, links }) => {
+        // Dates must be parsed to Date objects before providing.
+        tasks.forEach((t) => {
+          t.start = new Date(t.start);
+          if (t.end) t.end = new Date(t.end);
+        });
+
+        api.exec('provide-data', {
+          id: ev.id,
+          data: { tasks, links },
+        });
+      });
+  });
+}, []);
+
+<Gantt init={init} tasks={initialTasks} links={initialLinks} scales={scales} />
+```
+
+<Tip>
+  Always parse date strings to `Date` objects before passing them to `provide-data`. The Gantt internally calls `parseTaskDates()` on the initial `tasks` prop, but data provided via `provide-data` arrives after that step.
+</Tip>
+
+## Server-side data loading with RestDataProvider
+
+`@svar-ui/gantt-data-provider` ships a `RestDataProvider` that handles the full CRUD + lazy-load cycle over a REST API. Connect it via `api.setNext()` so all Gantt actions (add, update, delete, lazy expand) are automatically synced to the server.
+
+<Steps>
+  <Step title="Install the data provider">
+    `RestDataProvider` is bundled as a dependency of `@svar-ui/react-gantt`. Import it directly:
+
+    ```js
+    import { RestDataProvider } from '@svar-ui/gantt-data-provider';
+    ```
+  </Step>
+  <Step title="Create a provider instance">
+    ```js
+    const restProvider = useMemo(
+      () => new RestDataProvider('https://api.example.com'),
+      [],
+    );
+    ```
+  </Step>
+  <Step title="Load initial data">
+    ```js
+    useEffect(() => {
+      restProvider.getData().then(({ tasks, links }) => {
+        setTasks(tasks);
+        setLinks(links);
+      });
+    }, [restProvider]);
+    ```
+  </Step>
+  <Step title="Connect the provider to the API">
+    ```jsx
+    const init = useCallback(
+      (api) => {
+        setApi(api);
+
+        // Route all Gantt actions through the provider.
+        api.setNext(restProvider);
+
+        // Handle lazy-expand requests.
+        api.on('request-data', (ev) => {
+          restProvider.getData(ev.id).then(({ tasks, links }) => {
+            api.exec('provide-data', {
+              id: ev.id,
+              data: { tasks, links },
+            });
+          });
+        });
+      },
+      [restProvider],
+    );
+
+    return (
+      <ContextMenu api={api}>
+        <Gantt init={init} tasks={tasks} links={links} scales={scales} />
+      </ContextMenu>
+    );
+    ```
+  </Step>
+</Steps>
+
+### Batched REST updates
+
+To reduce the number of HTTP requests when many actions fire in quick succession, pass a `batchURL` option to `RestDataProvider`. All queued mutations are sent in a single batch request.
+
+```js
+const restProvider = useMemo(
+  () =>
+    new RestDataProvider('https://api.example.com', {
+      batchURL: 'batch', // POST to https://api.example.com/batch
+    }),
+  [],
+);
+```
+
+The batch request body is an array of operation objects. Your server endpoint should process them in order and return an array of results.
+
+## Manual server sync (without RestDataProvider)
+
+If you need full control over how changes are sent to the server, use `api.on()` to handle each action type:
+
+```js
+const init = useCallback((api) => {
+  setApi(api);
+
+  api.on('add-task', ({ id, task }) =>
+    fetch('/api/tasks', {
+      method: 'POST',
+      body: JSON.stringify({ id, ...task }),
+    }),
+  );
+
+  api.on('update-task', ({ id, task }) =>
+    fetch(`/api/tasks/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(task),
+    }),
+  );
+
+  api.on('delete-task', ({ id }) =>
+    fetch(`/api/tasks/${id}`, { method: 'DELETE' }),
+  );
+
+  api.on('add-link', ({ link }) =>
+    fetch('/api/links', {
+      method: 'POST',
+      body: JSON.stringify(link),
+    }),
+  );
+
+  api.on('delete-link', ({ id }) =>
+    fetch(`/api/links/${id}`, { method: 'DELETE' }),
+  );
+
+  // Lazy-load children on expand.
+  api.on('request-data', (ev) => {
+    Promise.all([
+      fetch(`/api/tasks/${ev.id}`).then((r) => r.json()),
+      fetch(`/api/links/${ev.id}`).then((r) => r.json()),
+    ]).then(([tasks, links]) => {
+      tasks.forEach((t) => { t.start = new Date(t.start); });
+      api.exec('provide-data', { id: ev.id, data: { tasks, links } });
+    });
+  });
+}, []);
+```
+
+## Best practices
+
+<AccordionGroup>
+  <Accordion title="Keep the initial task list shallow">
+    Load only the top-level tasks and their immediate children on first render. Mark deeper summary tasks with `lazy: true` and load their children on demand via `request-data`.
+  </Accordion>
+  <Accordion title="Parse dates on the server boundary">
+    The Gantt expects `Date` objects, not strings. Parse `start` and `end` to `Date` in the same place you receive server data — before passing to `tasks` prop or `provide-data`.
+  </Accordion>
+  <Accordion title="Use useMemo for tasks and links">
+    Avoid creating new `tasks` or `links` arrays on every render. Wrap them in `useMemo` or store them in state so the Gantt's internal reconciliation can skip unnecessary reprocessing.
+  </Accordion>
+  <Accordion title="Use RestDataProvider for CRUD sync">
+    `RestDataProvider` with `batchURL` reduces HTTP round-trips and handles the lazy-load protocol automatically. Prefer it over manually wiring `api.on()` handlers unless you need custom request shapes.
+  </Accordion>
+  <Accordion title="Enable undo only when needed">
+    The `undo={true}` prop on `<Gantt>` keeps a full history buffer in memory. Disable it on read-only charts or dashboards where undo is not required.
+  </Accordion>
+</AccordionGroup>
